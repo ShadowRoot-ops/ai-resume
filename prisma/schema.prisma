@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  role          String     @default("user") //
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  credits       Int       @default(1)
+  featureUnlocks FeatureUnlock[]
+  resumeAnalyses  ResumeAnalysis[]
+  templates     Template[]  // Start with 1 free generation
+  resumes       Resume[]
+  subscription  Subscription?
+  payments      Payment[]
+  creditUsage CreditUsage[]
+}
+
+model ResumeTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  description   String
+  category      String   // indian_corporate, startup, government, fresher
+  company       String?  // For company-specific templates like "TCS", "Infosys"
+  isPremium     Boolean  @default(true)
+  thumbnailUrl  String
+  templateData  Json
+  downloads     Int      @default(0)
+  atsScore      Int      @default(85) // Pre-calculated ATS score
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model KeywordPack {
+  id            String   @id @default(cuid())
+  name          String
+  industry      String   // IT, Marketing, Sales, BPO, Design
+  keywords      String[] // Array of keywords
+  isPremium     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Template {
+  id                   String   @id @default(cuid())
+  companyName          String
+  jobTitle             String
+  industry             String?
+  seniorityLevel       String?
+  department           String?
+  version              String   @default("1.0")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  downloads            Int      @default(0)
+  views                Int      @default(0)
+  successRate          Int?     // 0-100 percentage
+  atsScore             Int?     // 0-100 percentage
+  resumeContent        String   // JSON string
+  tipsAndInsights      String?  // JSON string array
+  keySkills            String?  // JSON string array
+  cultureFitIndicators String?  // JSON string array
+  redFlags             String?  // JSON string array
+  sampleInterviewQuestions String? // JSON string array
+  isPublic             Boolean  @default(true)
+  isAnonymized         Boolean  @default(false)
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// prisma/schema.prisma
+model ResumeAnalysis {
+  id              String   @id @default(cuid())
+  userId          String
+  jobDescription  String   @db.Text
+  atsScore        Int
+  keywordMatch    Int
+  formatScore     Int
+  analysisData    Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  FEATURE_UNLOCK
+  CREDITS
+}
+
+model Resume {
+  id                String   @id @default(cuid())
+  userId            String
+  title             String
+  content           Json
+  jobDescription    String   @db.Text
+  jobTitle          String?  
+  companyTargeted   String?
+  keywordMatch    Int          @default(0)
+  formatScore     Int          @default(0)
+  analysisData    Json
+  atsScore          Int?     @default(0)
+  templateId        String?  @default("professional")
+  colorPaletteIndex Int?     @default(0)
+  fontFamily        String?  @default("Inter")  // Added font family field
+  exceedsOnePage    Boolean? @default(false)    // Track if resume exceeds one page
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  atsScoreDetails AtsScoreDetails?
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  PAST_DUE
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  plan              SubscriptionPlan   @default(FREE)
+  status            SubscriptionStatus @default(ACTIVE)
+  startDate         DateTime           @default(now())
+  endDate           DateTime?
+  trialEndsAt       DateTime?
+  razorpaySubId     String?            @unique
+  cancelAt          DateTime?
+  canceledAt        DateTime?
+  monthlyScansUsed  Int                @default(0)
+  lastScanReset     DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  
+  user              User               @relation(fields: [userId], references: [id])
+  featureUnlocks    FeatureUnlock[]
+  
+  @@index([userId])
+}
+
+model FeatureUnlock {
+  id               String      @id @default(cuid())
+  userId           String
+  feature          String      // e.g., "detailed_analysis", "pdf_export", "template_tcs"
+  unlockedAt       DateTime    @default(now())
+  expiresAt        DateTime?   // For temporary unlocks
+  razorpayPaymentId String
+  
+  user             User        @relation(fields: [userId], references: [id], map: "FeatureUnlock_user_fkey")
+  subscription     Subscription @relation(fields: [userId], references: [userId], map: "FeatureUnlock_subscription_fkey")
+  @@unique([userId, feature])
+  @@index([userId])
+}
+
+model RecruiterUpload {
+  id            String    @id @default(cuid())
+  resumeContent Json
+  companyName   String
+  jobTitle      String
+  uploadedAt    DateTime  @default(now())
+}
+
+model Payment {
+  id                String      @id @default(cuid())
+  userId            String
+  amount            Float
+  currency          String      @default("INR")
+  razorpayId        String      @unique // This is the order ID
+  razorpayPaymentId String?     // This is the actual payment ID from Razorpay
+  status            String      @default("pending")
+  type              PaymentType @default(CREDITS)
+  receipt           String? 
+  featureId         String?     // For feature-specific payments
+  resumeId          String?     // For resume-specific features
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt @default(now()) // FIXED: Added default value
+  creditsAdded      Int         @default(7)
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([razorpayPaymentId])
+}
+
+model CreditUsage {
+  id            String         @id @default(cuid())
+  userId        String
+  amount        Int            @default(1)
+  service       String         // resume_create, resume_analyze, career_tools
+  description   String?
+  createdAt     DateTime       @default(now())
+  
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([service])
+}
+
+model AtsScoreDetails {
+  id              String   @id @default(cuid())
+  resumeId        String   @unique
+  formattingScore Int      @default(0)
+  keywordScore    Int      @default(0)
+  skillsGapScore  Int      @default(0)
+  beforeScore     Int?     // For showing improvement
+  afterScore      Int?     // For showing improvement
+  missingKeywords String[] @default([])
+  missingSkills   String[] @default([])
+  suggestions     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  resume          Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+}
