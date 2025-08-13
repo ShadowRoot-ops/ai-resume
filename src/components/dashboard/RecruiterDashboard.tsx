@@ -1,4 +1,4 @@
-// src/components/dashboard/RecruiterDashboard.tsx
+// src/components/dashboard/RecruiterDashboard.tsx (Updated Quick Actions Section)
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -13,6 +13,9 @@ import {
   TrendingUp,
   RefreshCw,
   AlertTriangle,
+  Search,
+  Users,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -54,7 +57,7 @@ const RecruiterDashboard: React.FC<DashboardProps> = ({ userId }) => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [userId]); // Include userId in the dependency array
+  }, [userId]);
 
   const fetchDashboardData = async () => {
     try {
@@ -137,7 +140,8 @@ const RecruiterDashboard: React.FC<DashboardProps> = ({ userId }) => {
           Welcome to Your Recruiter Dashboard
         </h1>
         <p className="text-gray-600">
-          Manage your resume templates and track their performance
+          Manage your resume templates, analyze candidates, and track
+          performance
         </p>
       </div>
 
@@ -240,12 +244,25 @@ const RecruiterDashboard: React.FC<DashboardProps> = ({ userId }) => {
         </div>
       </section>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Updated with Resume Match */}
       <section className="mb-10">
         <h2 className="text-lg font-medium text-gray-700 mb-4">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <Link
+            href="/recruiter/resume-match"
+            className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-sm hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex flex-col items-center text-center group"
+          >
+            <div className="p-3 rounded-full bg-white bg-opacity-20 mb-3 group-hover:bg-opacity-30 transition-all duration-200">
+              <Search className="h-6 w-6" />
+            </div>
+            <h3 className="font-medium mb-1">Resume Match</h3>
+            <p className="text-sm opacity-90">
+              Analyze resumes against job requirements
+            </p>
+          </Link>
+
           <Link
             href="/recruiter/upload"
             className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors flex flex-col items-center text-center"
@@ -253,7 +270,6 @@ const RecruiterDashboard: React.FC<DashboardProps> = ({ userId }) => {
             <div className="p-3 rounded-full bg-primary-100 mb-3">
               <FileUp className="h-6 w-6 text-primary-600" />
             </div>
-
             <h3 className="font-medium text-gray-900 mb-1">Upload Template</h3>
             <p className="text-sm text-gray-500">
               Create a new resume template
@@ -294,6 +310,53 @@ const RecruiterDashboard: React.FC<DashboardProps> = ({ userId }) => {
             <h3 className="font-medium text-gray-900 mb-1">Bulk Upload</h3>
             <p className="text-sm text-gray-500">Upload multiple templates</p>
           </Link>
+        </div>
+      </section>
+
+      {/* Resume Matching Feature Highlight */}
+      <section className="mb-10">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <div className="p-3 rounded-full bg-blue-100">
+                <Target className="h-8 w-8 text-blue-600" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                AI-Powered Resume Matching
+              </h3>
+              <p className="text-gray-700 mb-4">
+                Use our advanced AI system to analyze candidate resumes against
+                your job requirements. Get detailed match scores, skill
+                analysis, and hiring recommendations.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="flex items-center text-sm text-gray-600">
+                  <Search className="h-4 w-4 mr-2 text-blue-500" />
+                  Single resume analysis with detailed insights
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <Users className="h-4 w-4 mr-2 text-blue-500" />
+                  Bulk processing of multiple candidates
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <Target className="h-4 w-4 mr-2 text-blue-500" />
+                  Advanced filtering and ranking
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <Download className="h-4 w-4 mr-2 text-blue-500" />
+                  Export results for easy sharing
+                </div>
+              </div>
+              <Link href="/recruiter/resume-match">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Search className="mr-2 h-4 w-4" />
+                  Try Resume Matching
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 

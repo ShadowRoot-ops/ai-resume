@@ -1,3 +1,4 @@
+// prisma/schema.prisma (Updated with Resume Analysis Models)
 generator client {
   provider = "prisma-client-js"
 }
@@ -20,11 +21,12 @@ model User {
   credits       Int       @default(1)
   featureUnlocks FeatureUnlock[]
   resumeAnalyses  ResumeAnalysis[]
-  templates     Template[]  // Start with 1 free generation
+  templates     Template[]
   resumes       Resume[]
   subscription  Subscription?
   payments      Payment[]
   creditUsage CreditUsage[]
+  recruiterAnalyses RecruiterResumeAnalysis[]
 }
 
 model ResumeTemplate {
@@ -78,7 +80,6 @@ model Template {
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// prisma/schema.prisma
 model ResumeAnalysis {
   id              String   @id @default(cuid())
   userId          String
@@ -93,6 +94,49 @@ model ResumeAnalysis {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// New model for recruiter resume analysis
+model RecruiterResumeAnalysis {
+  id                    String   @id @default(cuid())
+  userId                String   // Recruiter who performed the analysis
+  jobDescription        String   @db.Text
+  candidateName         String?
+  candidateEmail        String?
+  candidatePhone        String?
+  candidateLocation     String?
+  candidateExperience   String?
+  candidateCurrentRole  String?
+  candidateEducation    String?
+  resumeFileName        String
+  resumeFileSize        Int
+  overallScore          Int      // 0-100
+  atsScore              Int      // 0-100
+  keywordMatches        String[] // Array of matched keywords
+  missingKeywords       String[] // Array of missing keywords
+  skillsMatch           String[] // Array of matched skills
+  missingSkills         String[] // Array of missing skills
+  candidateSkills       String[] // Array of candidate's skills
+  strengths             String[] // Array of strengths
+  weaknesses            String[] // Array of weaknesses
+  recommendations       String[] // Array of recommendations
+  experienceMatch       Boolean  @default(false)
+  experienceGap         String?
+  recommendation        String   // HIRE, MAYBE, REJECT
+  reasonForRecommendation String @db.Text
+  detailedAnalysis      Json?    // Technical skills, experience, education, keywords scores
+  analysisType          String   @default("SINGLE") // SINGLE or BULK
+  batchId               String?  // For grouping bulk analyses
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([batchId])
+  @@index([recommendation])
+  @@index([overallScore])
+  @@index([createdAt])
 }
 
 enum PaymentType {
@@ -209,7 +253,7 @@ model CreditUsage {
   id            String         @id @default(cuid())
   userId        String
   amount        Int            @default(1)
-  service       String         // resume_create, resume_analyze, career_tools
+  service       String         // resume_create, resume_analyze, career_tools, resume_match
   description   String?
   createdAt     DateTime       @default(now())
   
