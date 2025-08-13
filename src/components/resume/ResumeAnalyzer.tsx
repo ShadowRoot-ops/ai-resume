@@ -208,7 +208,6 @@ export default function ResumeAnalyzer() {
                   <SelectValue placeholder="Select country (or leave blank for auto-detect)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Replace this empty string value with a non-empty value */}
                   <SelectItem value="auto-detect">Auto-detect</SelectItem>
                   <SelectItem value="india">India</SelectItem>
                   <SelectItem value="us">United States</SelectItem>

@@ -1,4 +1,5 @@
 // src/lib/pdfParser.ts
+
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -30,7 +31,8 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
       }
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("PDF extraction error:", error);
-    return `[Failed to extract text from PDF: ${error.message}]`;
+    return `[Failed to extract text from PDF: ${errorMessage}]`;
   }
 }

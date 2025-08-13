@@ -1,13 +1,53 @@
 // src/app/api/ai/extract-resume-data/route.ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@clerk/nextjs/server";
+
+// Define interfaces for type safety
+interface Experience {
+  company: string;
+  position: string;
+  location: string;
+  startDate: string | null;
+  endDate: string | null;
+  current: boolean;
+  responsibilities: string[];
+}
+
+interface Education {
+  institution: string;
+  degree: string;
+  fieldOfStudy: string;
+  startDate: string | null;
+  endDate: string | null;
+  gpa: string;
+}
+
+interface ExtractedData {
+  personalInfo: {
+    name: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedin: string;
+  };
+  summary: string;
+  experience?: Experience[];
+  education?: Education[];
+  skills: string[];
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string;
+    url: string;
+  }>;
+}
 
 export async function POST(req: Request) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    // Check authentication using Clerk
+    const { userId } = await auth();
+
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -21,81 +61,107 @@ export async function POST(req: Request) {
       );
     }
 
-    // Call AI model to extract resume data (example using OpenAI)
-    // Note: Replace with your actual AI implementation
+    // Call OpenAI to extract resume data
+    const openaiResponse = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a professional resume writer. Extract structured resume data from the user's input and format it as JSON.",
+            },
+            {
+              role: "user",
+              content: `Create a professional resume for the following position: ${jobTitle} at ${company}. 
+            
+            User input: ${prompt}
+            
+            Return the data in this exact JSON format:
+            {
+              "personalInfo": {
+                "name": "string",
+                "email": "string",
+                "phone": "string",
+                "location": "string",
+                "linkedin": "string"
+              },
+              "summary": "string",
+              "experience": [
+                {
+                  "company": "string",
+                  "position": "string",
+                  "location": "string",
+                  "startDate": "YYYY-MM-DD",
+                  "endDate": "YYYY-MM-DD or null if current",
+                  "current": boolean,
+                  "responsibilities": ["string"]
+                }
+              ],
+              "education": [
+                {
+                  "institution": "string",
+                  "degree": "string",
+                  "fieldOfStudy": "string",
+                  "startDate": "YYYY-MM-DD",
+                  "endDate": "YYYY-MM-DD",
+                  "gpa": "string"
+                }
+              ],
+              "skills": ["string"],
+              "projects": [
+                {
+                  "name": "string",
+                  "description": "string",
+                  "technologies": "string",
+                  "url": "string"
+                }
+              ]
+            }`,
+            },
+          ],
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        }),
+      }
+    );
 
-    // Sample response structure for frontend development
+    if (!openaiResponse.ok) {
+      throw new Error("Failed to get response from OpenAI");
+    }
+
+    const aiData = await openaiResponse.json();
+    const extractedData: ExtractedData = JSON.parse(
+      aiData.choices[0].message.content
+    );
+
+    // Process dates with proper typing
+    const processedData = {
+      ...extractedData,
+      experience: extractedData.experience?.map((exp: Experience) => ({
+        ...exp,
+        startDate: exp.startDate ? new Date(exp.startDate) : null,
+        endDate: exp.endDate ? new Date(exp.endDate) : null,
+      })),
+      education: extractedData.education?.map((edu: Education) => ({
+        ...edu,
+        startDate: edu.startDate ? new Date(edu.startDate) : null,
+        endDate: edu.endDate ? new Date(edu.endDate) : null,
+      })),
+    };
+
     const resumeData = {
       title: `Resume for ${jobTitle || "New Position"}`,
       jobTitle: jobTitle || "",
       companyTargeted: company || "",
-      personalInfo: {
-        name: "Alex Johnson", // This would be generated by AI
-        email: "alex.johnson@example.com",
-        phone: "(555) 123-4567",
-        location: "San Francisco, CA",
-        linkedin: "linkedin.com/in/alexjohnson",
-      },
-      summary:
-        "Results-driven professional with expertise in software development, project management, and team leadership. Skilled in developing innovative solutions that meet business requirements and enhance user experience.",
-      experience: [
-        {
-          company: "TechSolutions Inc.",
-          position: "Senior Frontend Developer",
-          location: "San Francisco, CA",
-          startDate: new Date("2021-01-15"),
-          current: true,
-          responsibilities: [
-            "Lead the development of responsive web applications using React and TypeScript",
-            "Improved site performance by 40% through code optimization and lazy loading",
-            "Mentored junior developers and conducted code reviews",
-          ],
-        },
-        {
-          company: "WebCraft Studios",
-          position: "Frontend Developer",
-          location: "Austin, TX",
-          startDate: new Date("2018-06-01"),
-          endDate: new Date("2020-12-31"),
-          responsibilities: [
-            "Developed interactive web applications using React and Redux",
-            "Implemented CI/CD pipelines that reduced deployment time by 70%",
-            "Created reusable UI components following atomic design principles",
-          ],
-        },
-      ],
-      education: [
-        {
-          institution: "University of Texas at Austin",
-          degree: "Bachelor of Science",
-          fieldOfStudy: "Computer Science",
-          startDate: new Date("2014-09-01"),
-          endDate: new Date("2018-05-15"),
-          gpa: "3.8/4.0",
-        },
-      ],
-      skills: [
-        "JavaScript",
-        "TypeScript",
-        "React",
-        "Node.js",
-        "HTML/CSS",
-        "Redux",
-        "GraphQL",
-        "Jest",
-        "Webpack",
-        "Git",
-        "CI/CD",
-      ],
-      projects: [
-        {
-          name: "E-commerce Dashboard",
-          description:
-            "Built a comprehensive admin dashboard for e-commerce businesses with real-time analytics.",
-          technologies: "React, Redux, Node.js, MongoDB",
-          url: "https://github.com/alexjohnson/ecommerce-dashboard",
-        },
-      ],
+      ...processedData,
     };
 
     // Return the extracted data

@@ -1,10 +1,11 @@
 // src/components/resume/AtsScoreBreakdown.tsx
+"use client";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, AlertTriangle, CheckCircle } from "lucide-react";
-import ServerPremiumGate from "@/components/premium/ServerPremiumGate";
+import PremiumFeatureGate from "@/components/premium/PremiumFeatureGate";
 
 interface AtsScoreBreakdownProps {
   resumeId: string;
@@ -242,8 +243,14 @@ export default function AtsScoreBreakdown({
     </Card>
   );
 
+  // If premium is unlocked, show detailed view directly
+  if (isPremiumUnlocked) {
+    return <DetailedView />;
+  }
+
+  // Otherwise, use PremiumFeatureGate with client-side premium checking
   return (
-    <ServerPremiumGate
+    <PremiumFeatureGate
       featureId="detailed_ats_analysis"
       resumeId={resumeId}
       title="Detailed ATS Analysis"
@@ -254,6 +261,6 @@ export default function AtsScoreBreakdown({
       blurredChildren={<BasicView />}
     >
       <DetailedView />
-    </ServerPremiumGate>
+    </PremiumFeatureGate>
   );
 }

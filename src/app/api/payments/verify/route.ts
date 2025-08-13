@@ -2,154 +2,180 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { revalidatePath } from "next/cache";
+import { getOrCreateUser } from "@/lib/user-helpers";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
     console.log("=== Payment Verification Started ===");
 
-    const { userId } = await auth();
-    if (!userId) {
+    const authResult = await auth();
+
+    if (!authResult.userId) {
+      console.log("No userId found in verification");
       return NextResponse.json(
-        { error: "User not authenticated" },
+        { error: "Unauthorized", message: "Please log in to continue" },
         { status: 401 }
       );
     }
 
-    const body = await request.json();
+    const user = await getOrCreateUser(authResult.userId);
+    const requestBody = await request.json();
+
     const {
-      razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature,
-      credits,
-      packageId,
-    } = body;
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      type,
+      featureId,
+      resumeId,
+    } = requestBody;
 
     console.log("Verification request:", {
-      userId,
-      razorpay_order_id,
-      razorpay_payment_id,
-      credits,
-      packageId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      type,
+      featureId,
+      resumeId,
     });
 
-    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
-      return NextResponse.json(
-        { error: "Missing payment parameters" },
-        { status: 400 }
-      );
-    }
-
-    // const crypto = require("crypto");
+    // Verify signature
+    const body = razorpayOrderId + "|" + razorpayPaymentId;
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET as string)
-      .update(razorpay_order_id + "|" + razorpay_payment_id)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+      .update(body.toString())
       .digest("hex");
 
-    console.log("Expected signature:", expectedSignature);
-    console.log("Received signature:", razorpay_signature);
-
-    if (expectedSignature !== razorpay_signature) {
-      console.error("Signature mismatch - payment verification failed");
-      return NextResponse.json(
-        { error: "Invalid payment signature" },
-        { status: 400 }
-      );
+    if (expectedSignature !== razorpaySignature) {
+      console.error("Signature verification failed");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
-    console.log("Payment signature verified successfully");
+    console.log("Signature verified successfully");
 
-    // Find payment record
+    // Find the payment record
     const payment = await prisma.payment.findUnique({
-      where: { razorpayId: razorpay_order_id },
-      include: { user: true },
+      where: { razorpayId: razorpayOrderId },
     });
 
     if (!payment) {
-      console.error("Payment record not found for order:", razorpay_order_id);
+      console.error("Payment record not found for order:", razorpayOrderId);
       return NextResponse.json(
         { error: "Payment record not found" },
         { status: 404 }
       );
     }
 
-    console.log("Found payment record:", {
-      id: payment.id,
-      userId: payment.userId,
-      amount: payment.amount,
-      creditsAdded: payment.creditsAdded,
-      currentStatus: payment.status,
+    // Update payment status
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "completed",
+        razorpayPaymentId: razorpayPaymentId,
+        updatedAt: new Date(),
+      },
     });
 
-    // Prevent double processing
-    if (payment.status === "successful") {
-      console.log("Payment already processed successfully");
-      return NextResponse.json({
-        success: true,
-        message: "Payment already processed",
-        creditsAdded: payment.creditsAdded,
+    console.log("Payment record updated to completed");
+
+    // Handle subscription or feature unlock
+    if (type === "subscription") {
+      console.log("Processing subscription activation");
+
+      // Calculate subscription dates
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
+
+      // Create or update subscription
+      const existingSubscription = await prisma.subscription.findUnique({
+        where: { userId: user.id },
       });
+
+      if (existingSubscription) {
+        await prisma.subscription.update({
+          where: { userId: user.id },
+          data: {
+            plan: "PRO",
+            status: "ACTIVE",
+            startDate,
+            endDate,
+            monthlyScansUsed: 0,
+            lastScanReset: startDate,
+            razorpaySubId: razorpayPaymentId,
+            updatedAt: new Date(),
+          },
+        });
+        console.log("Subscription updated to PRO");
+      } else {
+        await prisma.subscription.create({
+          data: {
+            userId: user.id,
+            plan: "PRO",
+            status: "ACTIVE",
+            startDate,
+            endDate,
+            monthlyScansUsed: 0,
+            lastScanReset: startDate,
+            razorpaySubId: razorpayPaymentId,
+          },
+        });
+        console.log("New PRO subscription created");
+      }
+
+      // Remove any existing feature unlocks since PRO gives access to everything
+      await prisma.featureUnlock.deleteMany({
+        where: { userId: user.id },
+      });
+    } else if (type === "feature_unlock" && featureId) {
+      console.log("Processing feature unlock for:", featureId);
+
+      // Create feature unlock
+      await prisma.featureUnlock.create({
+        data: {
+          userId: user.id,
+          feature: featureId,
+          razorpayPaymentId: razorpayPaymentId,
+          ...(resumeId && { resumeId }), // Only include resumeId if provided
+          expiresAt: null, // Feature doesn't expire for now
+        },
+      });
+
+      console.log("Feature unlock created successfully");
     }
 
-    // Update payment and add credits in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Update payment status with razorpayPaymentId field
-      const updatedPayment = await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          status: "successful",
-          razorpayPaymentId: razorpay_payment_id, // This field should now exist in schema
-          updatedAt: new Date(),
-        },
-      });
-
-      // Add credits to user
-      const updatedUser = await tx.user.update({
-        where: { id: payment.userId },
-        data: {
-          credits: {
-            increment: payment.creditsAdded,
-          },
-        },
-      });
-
-      return {
-        payment: updatedPayment,
-        user: updatedUser,
-        creditsAdded: payment.creditsAdded,
-      };
-    });
-
-    console.log("Credits added successfully:", {
-      previousCredits: payment.user.credits,
-      creditsAdded: result.creditsAdded,
-      newCredits: result.user.credits,
-    });
-
-    console.log("=== Payment Verification Completed ===");
-
-    // Revalidate the dashboard to show updated credits
-    revalidatePath("/dashboard");
+    console.log("=== Payment Verification Completed Successfully ===");
 
     return NextResponse.json({
       success: true,
-      creditsAdded: result.creditsAdded,
-      newTotalCredits: result.user.credits,
-      message: `Payment verified successfully. ${result.creditsAdded} credits added.`,
+      message: "Payment verified and access granted",
+      type,
+      featureId: featureId || null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("=== Payment Verification Error ===");
-    console.error("Payment verification error:", error);
+    console.error("Error details:", error);
     console.error(
       "Error stack:",
       error instanceof Error ? error.stack : "No stack trace"
     );
 
+    // Handle specific database errors
+    if (error && typeof error === "object" && "code" in error) {
+      if (error.code === "P2002") {
+        console.log("Duplicate entry - feature may already be unlocked");
+        return NextResponse.json({
+          success: true,
+          message: "Feature already unlocked",
+        });
+      }
+    }
+
     return NextResponse.json(
       {
         error: "Payment verification failed",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message:
+          error instanceof Error ? error.message : "Unknown error occurred",
         debug: process.env.NODE_ENV === "development" ? error : undefined,
       },
       { status: 500 }

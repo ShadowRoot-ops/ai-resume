@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,17 +14,24 @@ import {
   BarChart3,
   Users,
   Award,
-  Menu,
   X,
-  ArrowLeft,
 } from "lucide-react";
 
 export default function LuxuryLandingPage() {
   const router = useRouter();
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentStat, setCurrentStat] = useState(0);
-  const [particles, setParticles] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  type Particle = {
+    id: number;
+    left: number;
+    top: number;
+    size: number;
+    animationDelay: number;
+    animationDuration: number;
+    opacity: number;
+  };
+  const [particles, setParticles] = useState<Particle[]>([]);
+  // const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showEmailTooltip, setShowEmailTooltip] = useState(false);
   const [email, setEmail] = useState("");
 
@@ -59,7 +66,7 @@ export default function LuxuryLandingPage() {
   }, []);
 
   // Email subscription handler
-  const handleSubscribe = (e) => {
+  const handleSubscribe = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (email) {
       setShowEmailTooltip(true);
@@ -75,13 +82,13 @@ export default function LuxuryLandingPage() {
     router.push("/dashboard");
   };
 
-  const handleGoBack = () => {
-    router.back();
-  };
+  // const handleGoBack = () => {
+  //   router.back();
+  // };
 
-  const handleTryNow = () => {
-    router.push("/dashboard");
-  };
+  // const handleTryNow = () => {
+  //   router.push("/dashboard");
+  // };
 
   const handleBasicPlan = () => {
     router.push("/dashboard");
@@ -370,8 +377,8 @@ export default function LuxuryLandingPage() {
               <span className="font-bold block">Maximum Impact</span>
             </h2>
             <p className="text-xl font-light text-gray-600 max-w-2xl mx-auto">
-              Our AI doesn't just create resumes—it engineers career advancement
-              opportunities with unprecedented precision.
+              Our AI doesn&#39;t just create resumes—it engineers career
+              advancement opportunities with unprecedented precision.
             </p>
           </div>
 
@@ -671,9 +678,9 @@ export default function LuxuryLandingPage() {
               Satisfaction Guaranteed
             </h3>
             <p className="text-white/80 font-light leading-relaxed">
-              If our AI-generated resumes don't improve your interview response
-              rate within 30 days, we'll refund your purchase. We're that
-              confident in our technology.
+              If our AI-generated resumes don&apos;t improve your interview
+              response rate within 30 days, we&apos;ll refund your purchase.
+              We&apos;re that confident in our technology.
             </p>
           </div>
         </div>

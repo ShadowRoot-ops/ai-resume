@@ -65,17 +65,40 @@ export default function ResumeUpload() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (
-        file.type === "application/pdf" ||
+      // Updated file validation to be more comprehensive
+      const validTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+      ];
+
+      const isValidType =
+        validTypes.includes(file.type) ||
         file.name.endsWith(".doc") ||
-        file.name.endsWith(".docx")
-      ) {
+        file.name.endsWith(".docx") ||
+        file.name.endsWith(".pdf") ||
+        file.name.endsWith(".txt");
+
+      if (isValidType) {
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          setError("File size must be less than 5MB");
+          setFileName("");
+          setFileUploaded(false);
+          setFileContent(null);
+          return;
+        }
+
         setFileName(file.name);
         setFileUploaded(true);
         setFileContent(file);
         setError("");
+        toast.success(`File "${file.name}" uploaded successfully`);
       } else {
-        setError("Please upload a PDF or Word document (.pdf, .doc, .docx)");
+        setError(
+          "Please upload a PDF, Word document, or text file (.pdf, .doc, .docx, .txt)"
+        );
         setFileName("");
         setFileUploaded(false);
         setFileContent(null);
@@ -97,7 +120,7 @@ export default function ResumeUpload() {
       return;
     }
 
-    if (!jobDescription) {
+    if (!jobDescription.trim()) {
       setError("Please enter the job description for better results");
       return;
     }
@@ -126,30 +149,40 @@ export default function ResumeUpload() {
       setProcessing(true);
       setProcessingStep(1);
 
-      // Create FormData for API call
+      // Create FormData for API call - FIXED: Use "file" instead of "resume"
       const formData = new FormData();
-      formData.append("resume", fileContent);
-      formData.append("jobDescription", jobDescription);
-      if (customPrompt) {
-        formData.append("customPrompt", customPrompt);
+      formData.append("file", fileContent); // Changed from "resume" to "file"
+      formData.append("jobDescription", jobDescription.trim());
+      if (customPrompt.trim()) {
+        formData.append("customPrompt", customPrompt.trim());
       }
+
+      console.log("Submitting form data:", {
+        fileName: fileContent.name,
+        fileSize: fileContent.size,
+        jobDescriptionLength: jobDescription.length,
+        hasCustomPrompt: !!customPrompt.trim(),
+      });
 
       // Progress the UI steps with timeouts to show activity
       setTimeout(() => setProcessingStep(2), 1000);
       setTimeout(() => setProcessingStep(3), 2500);
 
       // Make the API call
-      const response = await fetch("/api/resume/analyze", {
+      const response = await fetch("/api/resumes/analyze", {
         method: "POST",
         body: formData,
       });
+
+      console.log("API Response status:", response.status);
 
       if (!response.ok) {
         let errorData;
         try {
           errorData = await response.json();
+          console.error("API Error:", errorData);
         } catch (err) {
-          // If response is not JSON
+          console.error("Failed to parse error response:", err);
           throw new Error(`${response.status} ${response.statusText}`);
         }
 
@@ -158,10 +191,15 @@ export default function ResumeUpload() {
 
       // Get the analysis results
       const data = await response.json();
+      console.log("Analysis results received:", data);
 
-      // Update UI with results
-      setAnalysisResults(data.results);
+      // Update UI with results - Handle both nested and flat response structures
+      const results = data.results || data;
+      setAnalysisResults(results);
       setAnalysisComplete(true);
+
+      // Show success toast
+      toast.success("Resume analysis completed successfully!");
 
       // Refresh credits display
       fetchCredits();
@@ -170,6 +208,8 @@ export default function ResumeUpload() {
       setError(
         err.message || "An error occurred during analysis. Please try again."
       );
+
+      toast.error(err.message || "Failed to analyze resume");
 
       // If the error was related to credits, we should refresh the credits count
       fetchCredits();
@@ -191,10 +231,18 @@ export default function ResumeUpload() {
     setAnalysisResults(null);
     setShowConfirmation(false);
     setError("");
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const downloadOptimizedResume = () => {
-    if (!analysisResults?.optimizedContent) return;
+    if (!analysisResults?.optimizedContent) {
+      toast.error("No optimized resume content available to download");
+      return;
+    }
 
     // Create text content for the optimized resume
     let content = "";
@@ -209,25 +257,29 @@ export default function ResumeUpload() {
     }\n\n`;
 
     // Summary
-    content += `PROFESSIONAL SUMMARY\n${optimized.summary || ""}\n\n`;
+    if (optimized.summary) {
+      content += `PROFESSIONAL SUMMARY\n${optimized.summary}\n\n`;
+    }
 
     // Skills
-    content += `SKILLS\n`;
-    const skills = optimized.skills || {};
-    if (typeof skills === "object") {
-      Object.entries(skills).forEach(([key, value]) => {
-        content += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}\n`;
-      });
-    } else {
-      content += `${skills}\n`;
+    if (optimized.skills) {
+      content += `SKILLS\n`;
+      if (typeof optimized.skills === "object") {
+        Object.entries(optimized.skills).forEach(([key, value]) => {
+          content += `${
+            key.charAt(0).toUpperCase() + key.slice(1)
+          }: ${value}\n`;
+        });
+      } else {
+        content += `${optimized.skills}\n`;
+      }
+      content += "\n";
     }
-    content += "\n";
 
     // Experience
-    content += `EXPERIENCE\n\n`;
-    const experience = optimized.experience || [];
-    if (Array.isArray(experience)) {
-      experience.forEach((role: any) => {
+    if (optimized.experience && Array.isArray(optimized.experience)) {
+      content += `EXPERIENCE\n\n`;
+      optimized.experience.forEach((role: any) => {
         content += `${role.title || ""}\n`;
         content += `${role.company || ""} | ${role.dates || ""}\n`;
 
@@ -241,14 +293,15 @@ export default function ResumeUpload() {
     }
 
     // Education
-    content += `EDUCATION\n`;
-    const education = optimized.education || [];
-    if (Array.isArray(education)) {
-      education.forEach((edu: string) => {
-        content += `${edu}\n`;
-      });
-    } else {
-      content += `${education}\n`;
+    if (optimized.education) {
+      content += `EDUCATION\n`;
+      if (Array.isArray(optimized.education)) {
+        optimized.education.forEach((edu: string) => {
+          content += `${edu}\n`;
+        });
+      } else {
+        content += `${optimized.education}\n`;
+      }
     }
 
     // Create a blob and download
@@ -261,6 +314,8 @@ export default function ResumeUpload() {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+
+    toast.success("Optimized resume downloaded!");
   };
 
   return (
@@ -285,7 +340,7 @@ export default function ResumeUpload() {
                 ref={fileInputRef}
                 type="file"
                 id="resume-upload"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,.txt"
                 className="hidden"
                 onChange={handleFileUpload}
               />
@@ -300,14 +355,20 @@ export default function ResumeUpload() {
                     Click to upload or drag and drop
                   </p>
                   <p className="text-xs text-gray-500">
-                    PDF or Word Document (Max 5MB)
+                    PDF, Word Document, or Text File (Max 5MB)
                   </p>
                 </div>
               ) : (
                 <div className="border rounded-lg p-4 bg-primary/5 flex items-center justify-between">
                   <div className="flex items-center">
                     <FileText className="h-5 w-5 text-primary mr-3" />
-                    <span className="font-medium">{fileName}</span>
+                    <div>
+                      <span className="font-medium">{fileName}</span>
+                      <p className="text-xs text-gray-500">
+                        {fileContent &&
+                          `${(fileContent.size / 1024 / 1024).toFixed(2)} MB`}
+                      </p>
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -382,7 +443,12 @@ export default function ResumeUpload() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={processing || !fileUploaded || creditsLoading}
+                disabled={
+                  processing ||
+                  !fileUploaded ||
+                  !jobDescription.trim() ||
+                  creditsLoading
+                }
                 className="flex items-center gap-2"
               >
                 {processing ? (
@@ -392,7 +458,7 @@ export default function ResumeUpload() {
                   </>
                 ) : (
                   <>
-                    {fileUploaded ? (
+                    {fileUploaded && jobDescription.trim() ? (
                       <>
                         <Target className="h-4 w-4" />
                         Analyze & Optimize
@@ -400,7 +466,9 @@ export default function ResumeUpload() {
                     ) : (
                       <>
                         <Upload className="h-4 w-4" />
-                        Upload Resume First
+                        {!fileUploaded
+                          ? "Upload Resume First"
+                          : "Enter Job Description"}
                       </>
                     )}
                   </>
@@ -449,7 +517,7 @@ export default function ResumeUpload() {
       </Dialog>
 
       {/* Processing Dialog */}
-      <Dialog open={processing} onOpenChange={(open) => false}>
+      <Dialog open={processing} onOpenChange={() => false}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Analyzing Your Resume</DialogTitle>
@@ -548,17 +616,18 @@ export default function ResumeUpload() {
                   </div>
                 </div>
                 <div className="flex-1 min-w-[180px] bg-primary/5 rounded-lg p-4 text-center">
-                  <div className="text-sm text-gray-500 mb-1">
-                    Keyword Match
-                  </div>
+                  <div className="text-sm text-gray-500 mb-1">Match Score</div>
                   <div className="text-3xl font-bold text-primary">
-                    {analysisResults.keywordMatch || 0}%
+                    {analysisResults.matchScore ||
+                      analysisResults.keywordMatch ||
+                      0}
+                    %
                   </div>
                 </div>
                 <div className="flex-1 min-w-[180px] bg-primary/5 rounded-lg p-4 text-center">
                   <div className="text-sm text-gray-500 mb-1">Format Score</div>
                   <div className="text-3xl font-bold text-primary">
-                    {analysisResults.formatScore || 0}%
+                    {analysisResults.formatScore || 85}%
                   </div>
                 </div>
               </div>
@@ -588,7 +657,7 @@ export default function ResumeUpload() {
                                 Missing Keywords
                               </h4>
                               <div className="flex flex-wrap gap-2">
-                                {analysisResults.keywordAnalysis?.missing?.map(
+                                {analysisResults.missingKeywords?.map(
                                   (keyword: string, i: number) => (
                                     <Badge
                                       key={i}
@@ -598,14 +667,28 @@ export default function ResumeUpload() {
                                       {keyword}
                                     </Badge>
                                   )
-                                )}
-                                {(!analysisResults.keywordAnalysis?.missing ||
-                                  analysisResults.keywordAnalysis.missing
-                                    .length === 0) && (
-                                  <span className="text-sm text-gray-500">
-                                    No missing keywords detected
-                                  </span>
-                                )}
+                                ) ||
+                                  analysisResults.keywordAnalysis?.missing?.map(
+                                    (keyword: string, i: number) => (
+                                      <Badge
+                                        key={i}
+                                        variant="outline"
+                                        className="bg-red-50 text-red-700 border-red-200"
+                                      >
+                                        {keyword}
+                                      </Badge>
+                                    )
+                                  )}
+                                {(!analysisResults.missingKeywords &&
+                                  !analysisResults.keywordAnalysis?.missing) ||
+                                  (analysisResults.missingKeywords?.length ===
+                                    0 &&
+                                    analysisResults.keywordAnalysis?.missing
+                                      ?.length === 0 && (
+                                      <span className="text-sm text-gray-500">
+                                        No missing keywords detected
+                                      </span>
+                                    ))}
                               </div>
                             </div>
 
@@ -751,149 +834,168 @@ export default function ResumeUpload() {
                 <TabsContent value="optimized">
                   {/* Complete optimized resume display */}
                   <div className="space-y-6">
-                    <div className="border rounded-lg p-6 bg-white shadow-sm">
-                      {/* Header section */}
-                      <div className="border-b pb-4 mb-4">
-                        <h2 className="text-2xl font-bold">
-                          {analysisResults.optimizedContent?.name || "John Doe"}
-                        </h2>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {analysisResults.optimizedContent?.contactInfo ||
-                            "email@example.com | (123) 456-7890 | City, State"}
-                        </p>
-                      </div>
+                    {analysisResults.optimizedContent ? (
+                      <div className="border rounded-lg p-6 bg-white shadow-sm">
+                        {/* Header section */}
+                        <div className="border-b pb-4 mb-4">
+                          <h2 className="text-2xl font-bold">
+                            {analysisResults.optimizedContent?.name ||
+                              "John Doe"}
+                          </h2>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {analysisResults.optimizedContent?.contactInfo ||
+                              "email@example.com | (123) 456-7890 | City, State"}
+                          </p>
+                        </div>
 
-                      {/* Summary section */}
-                      <div className="mb-6">
-                        <h3 className="text-lg font-bold uppercase mb-2">
-                          Professional Summary
-                        </h3>
-                        <p>
-                          {analysisResults.optimizedContent?.summary ||
-                            "No summary available"}
-                        </p>
-                      </div>
+                        {/* Summary section */}
+                        {analysisResults.optimizedContent?.summary && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-bold uppercase mb-2">
+                              Professional Summary
+                            </h3>
+                            <p>{analysisResults.optimizedContent.summary}</p>
+                          </div>
+                        )}
 
-                      {/* Skills section */}
-                      <div className="mb-6">
-                        <h3 className="text-lg font-bold uppercase mb-2">
-                          Technical Skills
-                        </h3>
-                        {analysisResults.optimizedContent?.skills ? (
-                          typeof analysisResults.optimizedContent.skills ===
-                          "object" ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {Object.entries(
-                                analysisResults.optimizedContent.skills
-                              ).map(
-                                (
-                                  [category, skills]: [string, any],
-                                  i: number
-                                ) => (
-                                  <p key={i}>
-                                    <span className="font-medium">
-                                      {category.charAt(0).toUpperCase() +
-                                        category.slice(1)}
-                                      :
-                                    </span>{" "}
-                                    {skills}
-                                  </p>
+                        {/* Skills section */}
+                        {analysisResults.optimizedContent?.skills && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-bold uppercase mb-2">
+                              Technical Skills
+                            </h3>
+                            {typeof analysisResults.optimizedContent.skills ===
+                            "object" ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {Object.entries(
+                                  analysisResults.optimizedContent.skills
+                                ).map(
+                                  (
+                                    [category, skills]: [string, any],
+                                    i: number
+                                  ) => (
+                                    <p key={i}>
+                                      <span className="font-medium">
+                                        {category.charAt(0).toUpperCase() +
+                                          category.slice(1)}
+                                        :
+                                      </span>{" "}
+                                      {skills}
+                                    </p>
+                                  )
+                                )}
+                              </div>
+                            ) : (
+                              <p>{analysisResults.optimizedContent.skills}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Experience section */}
+                        {analysisResults.optimizedContent?.experience && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-bold uppercase mb-4">
+                              Professional Experience
+                            </h3>
+                            <div className="space-y-6">
+                              {analysisResults.optimizedContent.experience.map(
+                                (role: any, i: number) => (
+                                  <div key={i} className="pb-4">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
+                                      <h4 className="font-semibold text-primary">
+                                        {role.title || "Position"}
+                                      </h4>
+                                      <p className="text-sm text-gray-600">
+                                        {role.dates || "Date Range"}
+                                      </p>
+                                    </div>
+                                    <p className="font-medium mb-2">
+                                      {role.company || "Company"}
+                                    </p>
+                                    {role.responsibilities && (
+                                      <ul className="list-disc pl-5 space-y-1">
+                                        {role.responsibilities.map(
+                                          (bullet: string, j: number) => (
+                                            <li key={j}>{bullet}</li>
+                                          )
+                                        )}
+                                      </ul>
+                                    )}
+                                  </div>
                                 )
                               )}
                             </div>
-                          ) : (
-                            <p>{analysisResults.optimizedContent.skills}</p>
-                          )
-                        ) : (
-                          <p className="text-gray-500">
-                            No skills information available
-                          </p>
+                          </div>
+                        )}
+
+                        {/* Education section */}
+                        {analysisResults.optimizedContent?.education && (
+                          <div>
+                            <h3 className="text-lg font-bold uppercase mb-2">
+                              Education
+                            </h3>
+                            {Array.isArray(
+                              analysisResults.optimizedContent.education
+                            ) ? (
+                              analysisResults.optimizedContent.education.map(
+                                (edu: string, i: number) => (
+                                  <p key={i} className="mb-1">
+                                    {edu}
+                                  </p>
+                                )
+                              )
+                            ) : (
+                              <p>
+                                {analysisResults.optimizedContent.education}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
-
-                      {/* Experience section */}
-                      <div className="mb-6">
-                        <h3 className="text-lg font-bold uppercase mb-4">
-                          Professional Experience
-                        </h3>
-                        <div className="space-y-6">
-                          {analysisResults.optimizedContent?.experience?.map(
-                            (role: any, i: number) => (
-                              <div key={i} className="pb-4">
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
-                                  <h4 className="font-semibold text-primary">
-                                    {role.title || "Position"}
-                                  </h4>
-                                  <p className="text-sm text-gray-600">
-                                    {role.dates || "Date Range"}
-                                  </p>
-                                </div>
-                                <p className="font-medium mb-2">
-                                  {role.company || "Company"}
-                                </p>
-                                <ul className="list-disc pl-5 space-y-1">
-                                  {role.responsibilities?.map(
-                                    (bullet: string, j: number) => (
-                                      <li key={j}>{bullet}</li>
-                                    )
-                                  )}
-                                </ul>
-                              </div>
-                            )
-                          )}
-                          {(!analysisResults.optimizedContent?.experience ||
-                            analysisResults.optimizedContent.experience
-                              .length === 0) && (
-                            <p className="text-gray-500">
-                              No experience information available
-                            </p>
-                          )}
+                    ) : (
+                      <div className="border rounded-lg p-6 bg-gray-50 text-center">
+                        <p className="text-gray-500 mb-4">
+                          No optimized resume content available. The analysis
+                          focused on providing recommendations for improvement.
+                        </p>
+                        <div className="text-sm text-gray-600">
+                          <p>Based on your analysis results:</p>
+                          <ul className="list-disc list-inside mt-2 space-y-1">
+                            <li>ATS Score: {analysisResults.atsScore || 0}%</li>
+                            <li>
+                              Match Score:{" "}
+                              {analysisResults.matchScore ||
+                                analysisResults.keywordMatch ||
+                                0}
+                              %
+                            </li>
+                            <li>
+                              Check the Recommendations tab for specific
+                              improvements
+                            </li>
+                          </ul>
                         </div>
                       </div>
-
-                      {/* Education section */}
-                      <div>
-                        <h3 className="text-lg font-bold uppercase mb-2">
-                          Education
-                        </h3>
-                        {analysisResults.optimizedContent?.education ? (
-                          Array.isArray(
-                            analysisResults.optimizedContent.education
-                          ) ? (
-                            analysisResults.optimizedContent.education.map(
-                              (edu: string, i: number) => (
-                                <p key={i} className="mb-1">
-                                  {edu}
-                                </p>
-                              )
-                            )
-                          ) : (
-                            <p>{analysisResults.optimizedContent.education}</p>
-                          )
-                        ) : (
-                          <p className="text-gray-500">
-                            No education information available
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    )}
 
                     <div className="border-t pt-4">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <p className="text-sm text-gray-500 italic">
-                          This optimized resume has been tailored to match the
-                          job requirements while maintaining your original
-                          qualifications.
+                          {analysisResults.optimizedContent
+                            ? "This optimized resume has been tailored to match the job requirements while maintaining your original qualifications."
+                            : "Use the recommendations provided to improve your resume manually."}
                         </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center"
-                          onClick={downloadOptimizedResume}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
+                        {analysisResults.optimizedContent && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center"
+                            onClick={downloadOptimizedResume}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -913,10 +1015,12 @@ export default function ResumeUpload() {
                 </Button>
 
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={downloadOptimizedResume}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Resume
-                  </Button>
+                  {analysisResults.optimizedContent && (
+                    <Button variant="outline" onClick={downloadOptimizedResume}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Resume
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

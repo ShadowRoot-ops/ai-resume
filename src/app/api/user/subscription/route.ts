@@ -1,20 +1,18 @@
-// src/app/api/user/subscription/route.ts
-
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getOrCreateUser } from "@/lib/user-helpers";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Get user authentication
-    const { userId } = auth();
-    if (!userId) {
+    const authResult = await auth();
+    if (!authResult.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get user from database
-    const user = await getOrCreateUser(userId);
+    const user = await getOrCreateUser(authResult.userId);
 
     // Get subscription info
     const subscription = await prisma.subscription.findUnique({

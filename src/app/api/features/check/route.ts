@@ -1,72 +1,45 @@
-// src/app/api/features/check/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { getOrCreateUser } from "@/lib/user-helpers";
+import {
+  isFeatureUnlocked,
+  getUserSubscription,
+} from "@/lib/subscription-helpers";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url);
-    const featureId = url.searchParams.get("featureId");
-    const resumeId = url.searchParams.get("resumeId");
+    const authResult = await auth();
 
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authResult.userId) {
+      return NextResponse.json({ isUnlocked: false }, { status: 200 });
     }
 
-    const user = await getOrCreateUser(userId);
+    const { searchParams } = new URL(request.url);
+    const featureId = searchParams.get("featureId");
+    const resumeId = searchParams.get("resumeId");
 
-    // Check if user has PRO subscription
-    const subscription = await prisma.subscription.findUnique({
-      where: { userId: user.id },
-    });
-
-    const isPro =
-      subscription?.plan === "PRO" &&
-      subscription?.status === "ACTIVE" &&
-      (!subscription.endDate || new Date(subscription.endDate) > new Date());
-
-    if (isPro) {
-      return NextResponse.json({
-        isUnlocked: true,
-        subscription: {
-          plan: subscription.plan,
-          status: subscription.status,
-        },
-      });
+    if (!featureId) {
+      return NextResponse.json(
+        { error: "featureId is required" },
+        { status: 400 }
+      );
     }
 
-    // Check for specific feature unlock
-    const featureUnlock = featureId
-      ? await prisma.featureUnlock.findUnique({
-          where: {
-            userId_feature: {
-              userId: user.id,
-              feature: featureId,
-            },
-          },
-        })
-      : null;
+    // Get user and check subscription
+    const user = await getOrCreateUser(authResult.userId);
+    const isUnlocked = await isFeatureUnlocked(user.id, featureId, resumeId);
 
-    const isUnlocked =
-      featureUnlock &&
-      (!featureUnlock.expiresAt ||
-        new Date(featureUnlock.expiresAt) > new Date());
+    // Get subscription info
+    const subscription = await getUserSubscription(user.id);
 
     return NextResponse.json({
       isUnlocked,
-      subscription: subscription
-        ? {
-            plan: subscription.plan,
-            status: subscription.status,
-          }
-        : null,
+      subscription,
     });
   } catch (error) {
     console.error("Error checking feature status:", error);
     return NextResponse.json(
-      { error: "Failed to check feature status" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

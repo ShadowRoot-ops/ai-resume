@@ -1,8 +1,17 @@
-// src/components/premium/PremiumFeatureGate.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Lock, Check, X, Loader2, Star, Clock, Shield } from "lucide-react";
+import {
+  Lock,
+  Check,
+  Loader2,
+  Star,
+  Clock,
+  Shield,
+  Sparkles,
+  Crown,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 
 interface PremiumFeatureGateProps {
@@ -31,17 +40,28 @@ interface PremiumFeatureGateProps {
   showTimer?: boolean;
 }
 
+interface SubscriptionInfo {
+  plan: string;
+  status: string;
+  [key: string]: any;
+}
+
+interface FeatureCheckResponse {
+  isUnlocked: boolean;
+  subscription?: SubscriptionInfo | null;
+}
+
 const FEATURE_CONFIGS = {
   detailed_ats_analysis: {
     title: "Detailed ATS Analysis",
     description:
       "Get comprehensive scoring breakdown and optimization suggestions",
     features: [
-      "ATS Score Breakdown",
-      "Keyword Gap Analysis",
-      "Formatting Assessment",
+      "Complete ATS Score Breakdown",
+      "Advanced Keyword Gap Analysis",
+      "Professional Formatting Assessment",
       "Skills Gap Identification",
-      "Improvement Recommendations",
+      "AI-Powered Recommendations",
     ],
   },
   pdf_export: {
@@ -55,7 +75,7 @@ const FEATURE_CONFIGS = {
     ],
   },
   keyword_suggestions: {
-    title: "Smart Keyword Suggestions",
+    title: "Smart Keyword Optimization",
     description: "AI-powered keyword optimization for better ATS performance",
     features: [
       "Industry-specific Keywords",
@@ -105,11 +125,12 @@ export default function PremiumFeatureGate({
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(
+    null
+  );
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [unlocking, setUnlocking] = useState<"pro" | "feature" | null>(null);
 
-  const { toast } = useToast();
   const { user } = useUser();
 
   const config = FEATURE_CONFIGS[featureId as keyof typeof FEATURE_CONFIGS] || {
@@ -119,27 +140,27 @@ export default function PremiumFeatureGate({
   };
 
   const blurClass = {
-    light: "blur-sm",
-    medium: "blur-md",
-    heavy: "blur-lg",
+    light: "blur-[1px]",
+    medium: "blur-[2px]",
+    heavy: "blur-[4px]",
   }[blurIntensity];
 
-  // Check feature status
+  // Check feature status on the client side via an API call
   useEffect(() => {
     const checkFeatureStatus = async () => {
       setIsChecking(true);
       try {
         const response = await fetch(
           `/api/features/check?featureId=${featureId}&resumeId=${
-            resumeId || ""
+            resumeId ?? ""
           }`
         );
 
         if (!response.ok) throw new Error("Failed to check feature status");
 
-        const data = await response.json();
+        const data: FeatureCheckResponse = await response.json();
         setIsUnlocked(data.isUnlocked);
-        setSubscription(data.subscription);
+        setSubscription(data.subscription ?? null);
       } catch (error) {
         console.error("Error checking feature status:", error);
         setIsUnlocked(false);
@@ -188,6 +209,12 @@ export default function PremiumFeatureGate({
     });
   };
 
+  type RazorpayHandlerResponse = {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  };
+
   const processPayment = async (
     paymentType: "subscription" | "feature_unlock",
     amount: number
@@ -209,24 +236,31 @@ export default function PremiumFeatureGate({
         }),
       });
 
-      if (!orderResponse.ok) throw new Error("Failed to create order");
-      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.message || "Failed to create order");
+      }
+
+      const orderData: {
+        order: { id: string; amount: number; currency: string };
+        key: string;
+      } = await orderResponse.json();
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
-        currency: orderData.currency,
+        key: orderData.key,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
         name: "Resume AI Builder",
         description:
           paymentType === "subscription"
-            ? "Pro Subscription (₹299/month)"
+            ? "Pro Subscription (₹239/month)"
             : `Unlock ${config.title} (₹99)`,
-        order_id: orderData.id,
+        order_id: orderData.order.id,
         prefill: {
           name: user?.fullName || "",
           email: user?.primaryEmailAddress?.emailAddress || "",
         },
-        handler: async function (response: any) {
+        handler: async function (response: RazorpayHandlerResponse) {
           try {
             const verifyResponse = await fetch("/api/payments/verify", {
               method: "POST",
@@ -241,35 +275,47 @@ export default function PremiumFeatureGate({
               }),
             });
 
-            if (!verifyResponse.ok)
-              throw new Error("Payment verification failed");
+            if (!verifyResponse.ok) {
+              const errorData = await verifyResponse.json();
+              throw new Error(
+                errorData.message || "Payment verification failed"
+              );
+            }
 
             setIsUnlocked(true);
             setIsModalOpen(false);
+            setUnlocking(null);
+            setIsLoading(false);
 
-            toast({
-              title:
-                paymentType === "subscription"
-                  ? "Subscription Activated!"
-                  : "Feature Unlocked!",
-              description:
-                paymentType === "subscription"
-                  ? "You now have access to all premium features."
-                  : `You now have access to ${config.title}.`,
-            });
+            toast.success(
+              paymentType === "subscription"
+                ? "Subscription Activated!"
+                : "Feature Unlocked!",
+              {
+                description:
+                  paymentType === "subscription"
+                    ? "You now have access to all premium features."
+                    : `You now have access to ${config.title}.`,
+              }
+            );
 
             // Refresh the page to update UI
-            window.location.reload();
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
           } catch (error) {
             console.error("Payment verification error:", error);
-            toast({
-              title: "Payment Verification Failed",
+            toast.error("Payment Verification Failed", {
               description: "Please contact support if payment was deducted.",
-              variant: "destructive",
             });
+            setUnlocking(null);
+            setIsLoading(false);
           }
         },
-        theme: { color: "#4F46E5" },
+        theme: {
+          color: "#000000",
+          backdrop_color: "rgba(0, 0, 0, 0.8)",
+        },
         modal: {
           ondismiss: function () {
             setIsLoading(false);
@@ -282,10 +328,11 @@ export default function PremiumFeatureGate({
       paymentObject.open();
     } catch (error) {
       console.error("Error initiating payment:", error);
-      toast({
-        title: "Payment Error",
-        description: "Failed to initiate payment. Please try again.",
-        variant: "destructive",
+      toast.error("Payment Error", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to initiate payment. Please try again.",
       });
       setIsLoading(false);
       setUnlocking(null);
@@ -302,7 +349,17 @@ export default function PremiumFeatureGate({
   };
 
   if (isChecking) {
-    return <div className="animate-pulse bg-gray-200 rounded-lg h-40"></div>;
+    return (
+      <div className="relative min-h-[200px]">
+        <div className="animate-pulse bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl h-full w-full border"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl shadow-xl border">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-600 mx-auto" />
+            <p className="text-sm text-gray-500 mt-2 text-center">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (
@@ -314,239 +371,309 @@ export default function PremiumFeatureGate({
 
   return (
     <>
-      <div onClick={handleLockedContentClick} className="relative">
+      <div
+        onClick={handleLockedContentClick}
+        className="relative cursor-pointer group transition-all duration-500 hover:scale-[1.01] rounded-xl overflow-hidden"
+      >
         {blurredChildren ? (
-          <>{blurredChildren}</>
+          <div className={`${blurClass} transition-all duration-500 grayscale`}>
+            {blurredChildren}
+          </div>
         ) : (
-          <div className={`${blurClass} pointer-events-none`}>{children}</div>
+          <div
+            className={`${blurClass} pointer-events-none transition-all duration-500 grayscale`}
+          >
+            {children}
+          </div>
         )}
 
-        {/* Lock overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-black/40 flex flex-col items-center justify-center rounded-lg cursor-pointer backdrop-blur-[1px]">
-          {showImprovement &&
-            beforeScore !== undefined &&
-            afterScore !== undefined && (
-              <div className="bg-white p-4 rounded-lg mb-4 text-center shadow-lg">
-                <div className="text-sm font-medium mb-2">
-                  Potential Score Improvement
+        {/* Luxurious Black & White Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-gray-900/50 to-black/70 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm transition-all duration-500 group-hover:from-black/70 group-hover:via-gray-900/60 group-hover:to-black/80">
+          {/* Premium Lock Card */}
+          <div className="bg-white/95 backdrop-blur-xl p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full border-2 border-gray-100/20 transform transition-all duration-500 group-hover:scale-105 group-hover:shadow-3xl">
+            {/* Elegant Crown Icon */}
+            <div className="flex items-center justify-center mb-6">
+              <div className="relative p-5 bg-gradient-to-br from-gray-900 via-black to-gray-800 rounded-full shadow-xl border-4 border-white/10">
+                <Crown className="h-8 w-8 text-white" />
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-yellow-400 via-amber-300 to-yellow-500 rounded-full flex items-center justify-center">
+                  <Sparkles className="h-3 w-3 text-black animate-pulse" />
                 </div>
-                <div className="flex items-center justify-center gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-500">
-                      {beforeScore}%
-                    </div>
-                    <div className="text-xs text-gray-400">Current</div>
-                  </div>
-                  <div className="flex items-center text-green-600">
-                    <div className="h-0.5 w-8 bg-gradient-to-r from-gray-400 to-green-600"></div>
-                    <div className="text-lg">→</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {afterScore}%
-                    </div>
-                    <div className="text-xs text-green-600">Potential</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          <div className="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm mx-4">
-            <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full">
-                <Lock className="h-6 w-6 text-white" />
+                {/* Glow effect */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-900 to-black opacity-20 blur-xl"></div>
               </div>
             </div>
 
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-gray-900 mb-3 tracking-tight">
               {config.title}
             </h3>
-            <p className="text-sm text-gray-600 mb-4">{config.description}</p>
 
-            <div className="space-y-2 mb-4">
-              {config.features.slice(0, 2).map((feature, index) => (
-                <div
-                  key={index}
-                  className="flex items-center text-left text-sm"
-                >
-                  <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  <span className="text-gray-700">{feature}</span>
-                </div>
-              ))}
-            </div>
+            {/* Description */}
+            <p className="text-gray-600 mb-6 leading-relaxed text-sm">
+              {config.description}
+            </p>
 
+            {/* Premium Badge */}
+            <Badge className="mb-6 bg-black text-white border-0 px-4 py-2 text-xs font-medium tracking-wide">
+              <Star className="h-3 w-3 mr-2" />
+              PREMIUM FEATURE
+            </Badge>
+
+            {/* Unlock Button */}
             <Button
-              size="sm"
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+              size="lg"
+              className="w-full bg-black hover:bg-gray-900 text-white shadow-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl border-0 py-4 text-base font-semibold tracking-wide"
             >
+              <Crown className="h-5 w-5 mr-3" />
               {unlockText}
             </Button>
+
+            {/* Subtle feature hint */}
+            <p className="text-xs text-gray-500 mt-4 font-medium">
+              Unlock now and elevate your career
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Upgrade Modal */}
+      {/* Premium Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">
-              Unlock Full Access
+        <DialogContent className="sm:max-w-4xl max-h-[95vh] overflow-y-auto bg-white border-0 shadow-2xl rounded-2xl">
+          {/* Header Section */}
+          <DialogHeader className="text-center space-y-4 pb-6 border-b border-gray-100">
+            <div className="flex justify-center">
+              <div className="p-4 bg-black rounded-2xl shadow-xl">
+                <Crown className="h-10 w-10 text-white" />
+              </div>
+            </div>
+            <DialogTitle className="text-4xl font-bold text-gray-900 tracking-tight">
+              Choose Your Plan
             </DialogTitle>
-            <DialogDescription className="text-base">
-              Get all premium features for just ₹299/month or ₹99 for one-time
-              use.
+            <DialogDescription className="text-gray-600 text-lg max-w-2xl mx-auto">
+              Unlock premium features and accelerate your career success with
+              our professional-grade resume tools.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Limited-time offer */}
+          {/* Limited Time Offer */}
           {timeLeft > 0 && showTimer && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 rounded-lg mb-6">
-              <div className="flex items-center justify-between mb-2">
+            <div className="bg-black text-white p-6 rounded-2xl my-6 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center">
-                  <Clock className="h-4 w-4 text-amber-600 mr-2" />
-                  <span className="text-amber-800 font-semibold">
-                    Limited Time: 20% OFF
+                  <div className="p-2 bg-white/20 rounded-full mr-3">
+                    <Clock className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-white font-bold text-xl">
+                    ⚡ Limited Time: 20% OFF
                   </span>
                 </div>
                 <Badge
                   variant="secondary"
-                  className="bg-amber-100 text-amber-800 font-mono"
+                  className="bg-white/20 text-white font-mono text-lg px-4 py-2 animate-pulse border-0"
                 >
                   {formatTime(timeLeft)}
                 </Badge>
               </div>
-              <p className="text-amber-700 text-sm">
-                Upgrade now and save ₹60 on your first month!
+              <p className="text-white/90 font-medium">
+                Upgrade to Pro now and save ₹60 on your first month. This
+                exclusive offer expires soon!
               </p>
             </div>
           )}
 
-          {/* Features list */}
-          <div className="mb-6">
-            <h4 className="font-semibold text-lg mb-4 flex items-center">
-              <Star className="h-5 w-5 text-yellow-500 mr-2" />
-              Premium Features:
-            </h4>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                "Detailed analysis",
-                "PDF export",
-                "Calendar sync",
-                "Recruiter templates",
-                "Industry keyword packs",
-                "Unlimited resume scans",
-                "Company-specific templates",
-                "Priority support",
-              ].map((feature, index) => (
-                <div key={index} className="flex items-start">
-                  <Check className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="font-medium text-gray-800">{feature}</span>
-                    {index < 4 && (
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {index === 0 &&
-                          "Get comprehensive ATS scoring and optimization tips"}
-                        {index === 1 &&
-                          "Export high-quality, watermark-free PDFs"}
-                        {index === 2 && "Sync with your preferred calendar app"}
-                        {index === 3 &&
-                          "Templates optimized for TCS, Infosys, and more"}
-                      </p>
-                    )}
+          {/* Pricing Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 my-8">
+            {/* Pro Subscription Card */}
+            <div className="relative border-4 border-black rounded-2xl p-8 bg-gradient-to-br from-gray-50 to-white shadow-2xl transform hover:scale-105 transition-all duration-300">
+              {/* Popular Badge */}
+              <Badge className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-2 text-sm shadow-lg border-0 font-semibold tracking-wide">
+                <Crown className="h-4 w-4 mr-2" />
+                MOST POPULAR
+              </Badge>
+
+              <div className="text-center">
+                {/* Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="p-4 bg-black rounded-2xl shadow-lg">
+                    <Star className="h-8 w-8 text-white" />
                   </div>
+                </div>
+
+                {/* Plan Details */}
+                <h3 className="font-bold text-3xl mb-3 text-gray-900">
+                  Pro Subscription
+                </h3>
+                <p className="text-gray-600 mb-8 text-base leading-relaxed">
+                  Unlimited access to all premium features with priority support
+                  and advanced analytics.
+                </p>
+
+                {/* Pricing */}
+                <div className="flex items-baseline justify-center mb-8">
+                  <span className="text-5xl font-bold text-gray-900">
+                    ₹{timeLeft > 0 && showTimer ? "239" : "299"}
+                  </span>
+                  <span className="text-xl text-gray-600 ml-2">/month</span>
+                  {timeLeft > 0 && showTimer && (
+                    <span className="ml-4 text-xl line-through text-gray-400">
+                      ₹299
+                    </span>
+                  )}
+                </div>
+
+                {/* CTA Button */}
+                <Button
+                  onClick={handleProSubscription}
+                  disabled={isLoading}
+                  className="w-full bg-black hover:bg-gray-900 text-white py-6 text-lg font-bold shadow-2xl transform hover:scale-105 transition-all duration-300 border-0 tracking-wide"
+                >
+                  {unlocking === "pro" ? (
+                    <>
+                      <Loader2 className="h-6 w-6 animate-spin mr-3" />
+                      Processing Payment...
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="h-6 w-6 mr-3" />
+                      Upgrade to Pro
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Single Feature Card */}
+            <div className="border-2 border-gray-300 rounded-2xl p-8 bg-gradient-to-br from-white to-gray-50 shadow-xl hover:shadow-2xl transition-all duration-300">
+              <div className="text-center">
+                {/* Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="p-4 bg-gray-600 rounded-2xl shadow-lg">
+                    <Lock className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+
+                {/* Plan Details */}
+                <h3 className="font-bold text-3xl mb-3 text-gray-900">
+                  Single Feature
+                </h3>
+                <p className="text-gray-600 mb-8 text-base leading-relaxed">
+                  Unlock just this specific feature for immediate use with no
+                  recurring commitment.
+                </p>
+
+                {/* Pricing */}
+                <div className="flex items-baseline justify-center mb-8">
+                  <span className="text-4xl font-bold text-gray-900">₹99</span>
+                  <span className="text-xl text-gray-600 ml-2">one-time</span>
+                </div>
+
+                {/* CTA Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleFeatureUnlock}
+                  disabled={isLoading}
+                  className="w-full border-2 border-gray-900 hover:bg-gray-900 hover:text-white py-6 text-lg font-bold transition-all duration-300 bg-white text-gray-900 tracking-wide"
+                >
+                  {unlocking === "feature" ? (
+                    <>
+                      <Loader2 className="h-6 w-6 animate-spin mr-3" />
+                      Processing Payment...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-6 w-6 mr-3" />
+                      Unlock Feature
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature Benefits */}
+          <div className="bg-gradient-to-r from-gray-50 to-white rounded-2xl p-8 my-8 border border-gray-200">
+            <h4 className="font-bold text-2xl mb-6 text-gray-900 flex items-center">
+              <Sparkles className="h-6 w-6 mr-3" />
+              What&apos;s included with {config.title}:
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {config.features.map((feature, index) => (
+                <div
+                  key={index}
+                  className="flex items-center text-base bg-white rounded-xl p-4 shadow-sm border border-gray-100"
+                >
+                  <div className="p-2 bg-black rounded-full mr-4 flex-shrink-0">
+                    <Check className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="text-gray-800 font-medium">{feature}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Pricing plans */}
-          <div className="grid grid-cols-1 gap-4 mb-6">
-            {/* Pro Subscription */}
-            <div className="border-2 border-indigo-200 rounded-lg p-5 bg-gradient-to-br from-indigo-50 to-blue-50 relative">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <Badge className="bg-indigo-600 text-white px-3 py-1">
-                  <Star className="h-3 w-3 mr-1" />
-                  Most Popular
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-lg">Pro Subscription</h3>
-                <Shield className="h-5 w-5 text-indigo-600" />
-              </div>
-
-              <p className="text-sm text-gray-600 mb-4">
-                Access all premium features for 30 days
-              </p>
-
-              <div className="flex items-baseline mb-4">
-                <span className="text-3xl font-bold text-indigo-600">
-                  ₹{timeLeft > 0 && showTimer ? "239" : "299"}
-                </span>
-                <span className="text-sm text-gray-500 ml-2">/month</span>
-                {timeLeft > 0 && showTimer && (
-                  <span className="ml-3 text-sm line-through text-gray-400">
-                    ₹299
+          {/* Improvement Showcase */}
+          {showImprovement && beforeScore && afterScore && (
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-8 my-8">
+              <div className="text-center">
+                <div className="flex items-center justify-center mb-6">
+                  <div className="p-3 bg-green-600 rounded-full mr-4">
+                    <Sparkles className="h-6 w-6 text-white" />
+                  </div>
+                  <span className="text-2xl font-bold text-green-800">
+                    Proven Results Guarantee
                   </span>
-                )}
-              </div>
+                </div>
 
-              <Button
-                onClick={handleProSubscription}
-                disabled={isLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2"
-              >
-                {unlocking === "pro" && isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Upgrade to Pro"
-                )}
-              </Button>
+                <div className="flex items-center justify-center text-3xl font-bold mb-4">
+                  <span className="px-6 py-3 bg-white border-2 border-green-200 rounded-xl text-gray-600">
+                    {beforeScore}%
+                  </span>
+                  <div className="mx-8 flex items-center">
+                    <div className="w-12 h-1 bg-gradient-to-r from-gray-400 to-green-600 rounded"></div>
+                    <span className="mx-4 text-green-600">→</span>
+                    <div className="w-12 h-1 bg-green-600 rounded"></div>
+                  </div>
+                  <span className="px-6 py-3 bg-green-600 text-white rounded-xl">
+                    {afterScore}%
+                  </span>
+                </div>
+
+                <p className="text-green-700 font-semibold text-lg">
+                  Join 50,000+ professionals who improved their ATS score by an
+                  average of {afterScore - beforeScore}+ points
+                </p>
+              </div>
             </div>
+          )}
 
-            {/* Single Feature */}
-            <div className="border border-gray-200 rounded-lg p-5 bg-gray-50">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Single Feature</h3>
-                <Lock className="h-5 w-5 text-gray-500" />
+          {/* Trust Indicators */}
+          <div className="text-center mt-8 pt-6 border-t border-gray-200">
+            <div className="flex items-center justify-center space-x-8 text-gray-600 mb-4">
+              <div className="flex items-center">
+                <Shield className="h-5 w-5 mr-2" />
+                <span className="text-sm font-medium">Secure Payment</span>
               </div>
-
-              <p className="text-sm text-gray-600 mb-4">
-                Unlock just {config.title} for 30 days
-              </p>
-
-              <div className="flex items-baseline mb-4">
-                <span className="text-2xl font-bold text-gray-800">₹99</span>
-                <span className="text-sm text-gray-500 ml-2">one-time</span>
+              <div className="flex items-center">
+                <Clock className="h-5 w-5 mr-2" />
+                <span className="text-sm font-medium">Instant Access</span>
               </div>
-
-              <Button
-                variant="outline"
-                onClick={handleFeatureUnlock}
-                disabled={isLoading}
-                className="w-full border-gray-300 hover:bg-gray-100"
-              >
-                {unlocking === "feature" && isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Unlock This Feature"
-                )}
-              </Button>
+              <div className="flex items-center">
+                <Check className="h-5 w-5 mr-2" />
+                <span className="text-sm font-medium">30-Day Guarantee</span>
+              </div>
             </div>
-          </div>
-
-          <div className="text-center">
-            <p className="text-xs text-gray-500 flex items-center justify-center">
-              <Shield className="h-3 w-3 mr-1" />
-              Secure payment via Razorpay • Cancel anytime
+            <p className="text-sm text-gray-500">
+              Powered by Razorpay • Cancel anytime • Full refund within 30 days
             </p>
           </div>
+
+          {/* Close Button */}
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+          >
+            <X className="h-6 w-6 text-gray-500" />
+          </button>
         </DialogContent>
       </Dialog>
     </>

@@ -35,6 +35,7 @@ export default async function ServerPremiumGate({
 }: ServerPremiumGateProps) {
   const { userId } = auth();
 
+  // If no user, fall back to the client-side gate which will show the lock screen
   if (!userId) {
     return (
       <PremiumFeatureGate
@@ -55,13 +56,16 @@ export default async function ServerPremiumGate({
     );
   }
 
+  // On the server, check if the feature is unlocked
   const user = await getOrCreateUser(userId);
   const unlocked = await isFeatureUnlocked(user.id, featureId);
 
+  // If unlocked, render the children directly
   if (unlocked) {
     return <>{children}</>;
   }
 
+  // If locked, render the client-side gate
   return (
     <PremiumFeatureGate
       featureId={featureId}
