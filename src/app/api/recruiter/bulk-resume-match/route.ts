@@ -25,6 +25,8 @@ const bulkMatchSchema = z.object({
     .optional(),
 });
 
+type BulkMatchFilters = z.infer<typeof bulkMatchSchema>["filters"];
+
 interface BulkResumeAnalysis {
   fileName: string;
   fileSize: number;
@@ -71,7 +73,7 @@ async function analyzeBulkResume(
   jobDescription: string,
   resumeText: string,
   fileName: string,
-  filters?: any
+  filters?: BulkMatchFilters
 ): Promise<BulkResumeAnalysis> {
   const prompt = `
     As an expert recruiter and ATS system, analyze this resume against the job description.
@@ -85,12 +87,12 @@ async function analyzeBulkResume(
     ${
       filters
         ? `Filters to consider:
-    - Minimum Experience: ${filters.minExperience || "Any"}
-    - Maximum Experience: ${filters.maxExperience || "Any"}
+    - Minimum Experience: ${filters.minExperience ?? "Any"}
+    - Maximum Experience: ${filters.maxExperience ?? "Any"}
     - Required Skills: ${filters.requiredSkills?.join(", ") || "None specified"}
-    - Location: ${filters.location || "Any"}
-    - Education: ${filters.education || "Any"}
-    - Minimum Score Required: ${filters.minScore || 70}`
+    - Location: ${filters.location ?? "Any"}
+    - Education: ${filters.education ?? "Any"}
+    - Minimum Score Required: ${filters.minScore ?? 70}`
         : ""
     }
     
@@ -149,7 +151,7 @@ async function analyzeBulkResume(
 
     return {
       fileName,
-      fileSize: 0, // Will be set from file
+      fileSize: 0,
       ...analysis,
     };
   } catch (error) {
@@ -160,51 +162,49 @@ async function analyzeBulkResume(
 
 function applyFilters(
   results: BulkResumeAnalysis[],
-  filters: any
+  filters: BulkMatchFilters = { minScore: 70, maxCandidates: 10 }
 ): BulkResumeAnalysis[] {
   let filtered = results.filter(
-    (result) => result.overallScore >= (filters.minScore || 70)
+    (result) => result.overallScore >= (filters.minScore ?? 70)
   );
 
   if (filters.minExperience !== undefined) {
     filtered = filtered.filter((result) => {
       const experience = parseInt(result.experience);
-      return !isNaN(experience) && experience >= filters.minExperience;
+      return !isNaN(experience) && experience >= filters.minExperience!;
     });
   }
 
   if (filters.maxExperience !== undefined) {
     filtered = filtered.filter((result) => {
       const experience = parseInt(result.experience);
-      return !isNaN(experience) && experience <= filters.maxExperience;
+      return !isNaN(experience) && experience <= filters.maxExperience!;
     });
   }
 
   if (filters.location) {
     filtered = filtered.filter((result) =>
-      result.location.toLowerCase().includes(filters.location.toLowerCase())
+      result.location.toLowerCase().includes(filters.location!.toLowerCase())
     );
   }
 
-  if (filters.requiredSkills && filters.requiredSkills.length > 0) {
+  if (filters.requiredSkills?.length) {
     filtered = filtered.filter((result) => {
       const candidateSkills = result.skills.map((skill) => skill.toLowerCase());
-      return filters.requiredSkills.some((skill: string) =>
+      return filters.requiredSkills!.some((skill) =>
         candidateSkills.includes(skill.toLowerCase())
       );
     });
   }
 
-  // Sort by overall score (descending)
   filtered.sort((a, b) => b.overallScore - a.overallScore);
 
-  // Limit results
-  return filtered.slice(0, filters.maxCandidates || 10);
+  return filtered.slice(0, filters.maxCandidates ?? 10);
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -213,9 +213,10 @@ export async function POST(request: NextRequest) {
     const jobDescription = formData.get("jobDescription") as string;
     const filtersString = formData.get("filters") as string;
 
-    const filters = filtersString ? JSON.parse(filtersString) : {};
+    const filters: BulkMatchFilters = filtersString
+      ? JSON.parse(filtersString)
+      : {};
 
-    // Get all uploaded files
     const files: File[] = [];
     let fileIndex = 0;
     while (true) {
@@ -232,10 +233,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate input
     bulkMatchSchema.parse({ jobDescription, filters });
 
-    // Process all resumes
     const results: BulkResumeAnalysis[] = [];
     const errors: string[] = [];
 
@@ -260,7 +259,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Apply filters and sorting
     const filteredResults = applyFilters(results, filters);
 
     return NextResponse.json({
@@ -268,7 +266,7 @@ export async function POST(request: NextRequest) {
       totalProcessed: files.length,
       totalMatched: filteredResults.length,
       results: filteredResults,
-      errors: errors.length > 0 ? errors : undefined,
+      errors: errors.length ? errors : undefined,
       summary: {
         hireRecommended: filteredResults.filter(
           (r) => r.recommendation === "HIRE"

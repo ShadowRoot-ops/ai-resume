@@ -77,7 +77,7 @@ interface FormData {
 }
 
 interface ResumeFormProps {
-  initialData?: any;
+  initialData?: Partial<FormData>;
   resumeId?: string;
   mode: "create" | "edit";
 }
@@ -107,16 +107,16 @@ const ResumeForm: React.FC<ResumeFormProps> = ({
         templateId: initialData.templateId || "professional",
         colorPaletteIndex: initialData.colorPaletteIndex || 0,
         fontFamily: initialData.fontFamily || "Inter",
-        personalInfo: initialData.content?.personalInfo || {
+        personalInfo: initialData.personalInfo || {
           name: "",
           email: "",
           phone: "",
         },
-        summary: initialData.content?.summary || "",
-        experience: initialData.content?.experience || [],
-        education: initialData.content?.education || [],
-        skills: initialData.content?.skills || [],
-        projects: initialData.content?.projects || [],
+        summary: initialData.summary || "",
+        experience: initialData.experience || [],
+        education: initialData.education || [],
+        skills: initialData.skills || [],
+        projects: initialData.projects || [],
       };
     }
 
@@ -182,22 +182,7 @@ const ResumeForm: React.FC<ResumeFormProps> = ({
     }
   }, []);
 
-  // Update form data handler
-  const updateFormData = (
-    section: keyof FormData,
-    field: string,
-    value: any
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof typeof prev],
-        [field]: value,
-      },
-    }));
-  };
-
-  // Simple fields update
+  // Updated handleInputChange to handle nested fields directly
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -206,7 +191,17 @@ const ResumeForm: React.FC<ResumeFormProps> = ({
     // Handle nested fields like personalInfo.name
     if (name.includes(".")) {
       const [section, field] = name.split(".");
-      updateFormData(section as keyof FormData, field, value);
+
+      if (section === "personalInfo") {
+        setFormData((prev) => ({
+          ...prev,
+          personalInfo: {
+            ...prev.personalInfo,
+            [field]: value,
+          },
+        }));
+      }
+      // Add other nested sections here if needed in the future
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }

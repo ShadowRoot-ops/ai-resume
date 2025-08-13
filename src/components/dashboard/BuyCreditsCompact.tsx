@@ -33,6 +33,13 @@ import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { createPaymentOrder } from "@/lib/actions/payment-actions";
 
+// Define proper types for Razorpay
+interface RazorpayResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
 interface RazorpayOptions {
   key: string;
   amount: number;
@@ -40,7 +47,7 @@ interface RazorpayOptions {
   name: string;
   description: string;
   order_id: string;
-  handler: (response: any) => void;
+  handler: (response: RazorpayResponse) => void;
   prefill?: {
     name?: string;
     email?: string;
@@ -57,15 +64,14 @@ interface RazorpayOptions {
   };
 }
 
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => {
-      open: () => void;
-      on: (event: string, callback: Function) => void;
-      close: () => void;
-    };
-  }
-}
+// interface RazorpayInstance {
+//   open: () => void;
+//   on: (event: string, callback: (response: RazorpayResponse) => void) => void;
+//   close: () => void;
+// }
+
+// Remove duplicate Window interface extension for Razorpay.
+// The Razorpay types and Window extension should be declared only once in a shared type definition file (e.g., src/lib/razorpay.ts).
 
 type CreditPackage = {
   id: string;
@@ -180,15 +186,20 @@ export default function BuyCreditsCompact({
       await loadRazorpayScript();
       toast.success("Opening payment gateway...");
 
-      // Configure Razorpay
+      // Ensure Razorpay is loaded
+      if (!window.Razorpay) {
+        throw new Error("Razorpay SDK not loaded");
+      }
+
+      // Configure Razorpay with proper types
       const options: RazorpayOptions = {
-        key: orderData.key,
-        amount: orderData.order.amount,
+        key: orderData.key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
+        amount: Number(orderData.order.amount),
         currency: orderData.order.currency,
         name: "AI Resume Builder",
         description: `${packageData.credits} Resume Generation Credits - ${packageData.title}`,
         order_id: orderData.order.id,
-        handler: function (response: any) {
+        handler: function (response: RazorpayResponse) {
           handlePaymentSuccess(response);
         },
         prefill: {
@@ -210,20 +221,22 @@ export default function BuyCreditsCompact({
 
       const razorpay = new window.Razorpay(options);
       razorpay.open();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Payment error:", error);
       toast.dismiss("payment-loading");
 
       // Handle specific error messages
       let errorMessage = "Payment processing failed. Please try again.";
-      if (error.message.includes("receipt")) {
-        errorMessage =
-          "Payment order creation failed. Please try again in a moment.";
-      } else if (error.message.includes("BAD_REQUEST_ERROR")) {
-        errorMessage =
-          "Invalid payment parameters. Please refresh and try again.";
-      } else if (error.message) {
-        errorMessage = error.message;
+      if (error instanceof Error) {
+        if (error.message.includes("receipt")) {
+          errorMessage =
+            "Payment order creation failed. Please try again in a moment.";
+        } else if (error.message.includes("BAD_REQUEST_ERROR")) {
+          errorMessage =
+            "Invalid payment parameters. Please refresh and try again.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       }
 
       setPaymentError(errorMessage);
@@ -233,7 +246,7 @@ export default function BuyCreditsCompact({
     }
   };
 
-  const handlePaymentSuccess = async (response: any) => {
+  const handlePaymentSuccess = async (response: RazorpayResponse) => {
     try {
       console.log("Payment success response:", response);
       toast.loading("Verifying payment...", { id: "payment-verification" });
@@ -275,12 +288,12 @@ export default function BuyCreditsCompact({
         router.push("/dashboard?payment_success=true");
         router.refresh();
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Payment verification error:", error);
       toast.dismiss("payment-verification");
 
       let errorMessage = "Payment verification failed. Please contact support.";
-      if (error.message) {
+      if (error instanceof Error && error.message) {
         errorMessage = error.message;
       }
 

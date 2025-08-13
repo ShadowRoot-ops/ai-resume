@@ -153,7 +153,7 @@ export function getSimilarTemplates(
  * Calculate ATS compatibility score based on template content
  * This is a simplified example - a real implementation would be more sophisticated
  */
-export function calculateAtsScore(templateContent: any): number {
+export function calculateAtsScore(): number {
   const score = 0;
   const maxScore = 10;
 

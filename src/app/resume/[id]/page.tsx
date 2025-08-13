@@ -26,6 +26,84 @@ import KeywordSuggestions from "@/components/resume/KeywordSuggestions";
 import PremiumFeatureGate from "@/components/premium/PremiumFeatureGate";
 import { colorPalettes } from "@/lib/resume-templates";
 
+// Type definitions based on your Prisma schema
+interface PersonalInfo {
+  name?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  linkedin?: string;
+  website?: string;
+}
+
+interface Experience {
+  position: string;
+  company: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  responsibilities?: string[];
+}
+
+interface Education {
+  degree: string;
+  fieldOfStudy?: string;
+  institution: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  gpa?: string;
+}
+
+interface Project {
+  name: string;
+  description: string;
+  technologies?: string;
+  url?: string;
+}
+
+interface ResumeContent {
+  personalInfo?: PersonalInfo;
+  summary?: string;
+  experience?: Experience[];
+  education?: Education[];
+  skills?: string[];
+  projects?: Project[];
+}
+
+interface AnalysisData {
+  beforeScore?: number;
+  afterScore?: number;
+  [key: string]: unknown;
+}
+
+interface Resume {
+  id: string;
+  userId: string;
+  title?: string;
+  content?: ResumeContent;
+  jobDescription?: string;
+  jobTitle?: string;
+  companyTargeted?: string;
+  keywordMatch: number;
+  formatScore: number;
+  analysisData: AnalysisData;
+  atsScore?: number;
+  templateId?: string;
+  colorPaletteIndex?: number;
+  fontFamily?: string;
+  exceedsOnePage?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ToastNotification {
+  title: string;
+  description?: string;
+  variant?: string;
+}
+
 // Helper function to safely format dates
 const formatDate = (
   dateString: string | null | undefined,
@@ -46,7 +124,7 @@ export default function ResumePage() {
   const id = params.id as string;
   const router = useRouter();
   const resumeRef = useRef<HTMLDivElement>(null);
-  const [resume, setResume] = useState<any>(null);
+  const [resume, setResume] = useState<Resume | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exceedsOnePage, setExceedsOnePage] = useState(false);
@@ -60,18 +138,10 @@ export default function ResumePage() {
   const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [unlockedFeatures, setUnlockedFeatures] = useState<string[]>([]);
   // Lightweight in-page toast replacement (sooner)
-  const [sooner, setSooner] = useState<{
-    title: string;
-    description?: string;
-    variant?: string;
-  } | null>(null);
+  const [sooner, setSooner] = useState<ToastNotification | null>(null);
 
   // Show a lightweight toast-like notification (sooner)
-  const soonerNotify = (payload: {
-    title: string;
-    description?: string;
-    variant?: string;
-  }) => {
+  const soonerNotify = (payload: ToastNotification) => {
     setSooner(payload);
     window.setTimeout(() => setSooner(null), 2500);
   };
@@ -123,11 +193,11 @@ export default function ResumePage() {
     if (resume && resume.jobDescription) {
       // Analyze keyword matches (improved version)
       const analyzeKeywords = () => {
-        const jobDescLower = resume.jobDescription.toLowerCase();
+        const jobDescLower = resume.jobDescription!.toLowerCase();
         const skills = resume.content?.skills || [];
         const summary = resume.content?.summary?.toLowerCase() || "";
         const experienceText = (resume.content?.experience || [])
-          .flatMap((exp: any) => {
+          .flatMap((exp: Experience) => {
             const texts = [];
             if (exp.position) texts.push(exp.position.toLowerCase());
             if (exp.company) texts.push(exp.company.toLowerCase());
@@ -558,194 +628,201 @@ export default function ResumePage() {
                   )}
 
                   {/* Experience */}
-                  {resume.content?.experience?.length > 0 && (
-                    <div className="mb-6">
-                      <h3
-                        className="text-lg font-semibold mb-2 border-b pb-1"
-                        style={{
-                          color: colorPalette.primary,
-                        }}
-                      >
-                        Experience
-                      </h3>
+                  {resume.content?.experience?.length &&
+                    resume.content.experience.length > 0 && (
+                      <div className="mb-6">
+                        <h3
+                          className="text-lg font-semibold mb-2 border-b pb-1"
+                          style={{
+                            color: colorPalette.primary,
+                          }}
+                        >
+                          Experience
+                        </h3>
 
-                      <div className="space-y-4">
-                        {resume.content.experience.map(
-                          (exp: any, index: number) => {
-                            // Safely format experience dates
-                            const startDate = exp.startDate
-                              ? formatDate(exp.startDate, "MMM yyyy")
-                              : "";
-                            const endDate = exp.current
-                              ? "Present"
-                              : exp.endDate
-                              ? formatDate(exp.endDate, "MMM yyyy")
-                              : "";
+                        <div className="space-y-4">
+                          {resume.content.experience.map(
+                            (exp: Experience, index: number) => {
+                              // Safely format experience dates
+                              const startDate = exp.startDate
+                                ? formatDate(exp.startDate, "MMM yyyy")
+                                : "";
+                              const endDate = exp.current
+                                ? "Present"
+                                : exp.endDate
+                                ? formatDate(exp.endDate, "MMM yyyy")
+                                : "";
 
-                            return (
-                              <div key={index} className="text-sm">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="font-bold">
-                                      {exp.position}
-                                    </div>
+                              return (
+                                <div key={index} className="text-sm">
+                                  <div className="flex justify-between items-start">
                                     <div>
-                                      {exp.company}
-                                      {exp.location ? `, ${exp.location}` : ""}
+                                      <div className="font-bold">
+                                        {exp.position}
+                                      </div>
+                                      <div>
+                                        {exp.company}
+                                        {exp.location
+                                          ? `, ${exp.location}`
+                                          : ""}
+                                      </div>
+                                    </div>
+                                    <div className="text-right whitespace-nowrap">
+                                      {startDate}
+                                      {" - "}
+                                      {endDate}
                                     </div>
                                   </div>
-                                  <div className="text-right whitespace-nowrap">
-                                    {startDate}
-                                    {" - "}
-                                    {endDate}
-                                  </div>
-                                </div>
 
-                                {exp.responsibilities?.length > 0 && (
-                                  <ul className="list-disc pl-5 mt-2 space-y-1">
-                                    {exp.responsibilities.map(
-                                      (resp: string, respIndex: number) => (
-                                        <li key={respIndex}>{resp}</li>
-                                      )
+                                  {exp.responsibilities?.length &&
+                                    exp.responsibilities.length > 0 && (
+                                      <ul className="list-disc pl-5 mt-2 space-y-1">
+                                        {exp.responsibilities.map(
+                                          (resp: string, respIndex: number) => (
+                                            <li key={respIndex}>{resp}</li>
+                                          )
+                                        )}
+                                      </ul>
                                     )}
-                                  </ul>
-                                )}
-                              </div>
-                            );
-                          }
-                        )}
+                                </div>
+                              );
+                            }
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Education */}
-                  {resume.content?.education?.length > 0 && (
-                    <div className="mb-6">
-                      <h3
-                        className="text-lg font-semibold mb-2 border-b pb-1"
-                        style={{
-                          color: colorPalette.primary,
-                        }}
-                      >
-                        Education
-                      </h3>
+                  {resume.content?.education?.length &&
+                    resume.content.education.length > 0 && (
+                      <div className="mb-6">
+                        <h3
+                          className="text-lg font-semibold mb-2 border-b pb-1"
+                          style={{
+                            color: colorPalette.primary,
+                          }}
+                        >
+                          Education
+                        </h3>
 
-                      <div className="space-y-4">
-                        {resume.content.education.map(
-                          (edu: any, index: number) => {
-                            // Safely format education dates
-                            const startDate = edu.startDate
-                              ? formatDate(edu.startDate, "yyyy")
-                              : "";
-                            const endDate = edu.current
-                              ? "Present"
-                              : edu.endDate
-                              ? formatDate(edu.endDate, "yyyy")
-                              : "";
+                        <div className="space-y-4">
+                          {resume.content.education.map(
+                            (edu: Education, index: number) => {
+                              // Safely format education dates
+                              const startDate = edu.startDate
+                                ? formatDate(edu.startDate, "yyyy")
+                                : "";
+                              const endDate = edu.current
+                                ? "Present"
+                                : edu.endDate
+                                ? formatDate(edu.endDate, "yyyy")
+                                : "";
 
-                            return (
-                              <div key={index} className="text-sm">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <div className="font-bold">
-                                      {edu.degree}
-                                      {edu.fieldOfStudy
-                                        ? ` in ${edu.fieldOfStudy}`
-                                        : ""}
+                              return (
+                                <div key={index} className="text-sm">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <div className="font-bold">
+                                        {edu.degree}
+                                        {edu.fieldOfStudy
+                                          ? ` in ${edu.fieldOfStudy}`
+                                          : ""}
+                                      </div>
+                                      <div>{edu.institution}</div>
+                                      {edu.gpa && <div>GPA: {edu.gpa}</div>}
                                     </div>
-                                    <div>{edu.institution}</div>
-                                    {edu.gpa && <div>GPA: {edu.gpa}</div>}
-                                  </div>
-                                  <div className="text-right whitespace-nowrap">
-                                    {startDate}
-                                    {" - "}
-                                    {endDate}
+                                    <div className="text-right whitespace-nowrap">
+                                      {startDate}
+                                      {" - "}
+                                      {endDate}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          }
-                        )}
+                              );
+                            }
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Skills */}
-                  {resume.content?.skills?.length > 0 && (
-                    <div className="mb-6">
-                      <h3
-                        className="text-lg font-semibold mb-2 border-b pb-1"
-                        style={{
-                          color: colorPalette.primary,
-                        }}
-                      >
-                        Skills
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {resume.content.skills.map(
-                          (skill: string, index: number) => (
-                            <span
-                              key={index}
-                              className="inline-block px-2 py-1 text-xs rounded-md"
-                              style={{
-                                backgroundColor: `${colorPalette.primary}20`,
-                              }}
-                            >
-                              {skill}
-                            </span>
-                          )
-                        )}
+                  {resume.content?.skills?.length &&
+                    resume.content.skills.length > 0 && (
+                      <div className="mb-6">
+                        <h3
+                          className="text-lg font-semibold mb-2 border-b pb-1"
+                          style={{
+                            color: colorPalette.primary,
+                          }}
+                        >
+                          Skills
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {resume.content.skills.map(
+                            (skill: string, index: number) => (
+                              <span
+                                key={index}
+                                className="inline-block px-2 py-1 text-xs rounded-md"
+                                style={{
+                                  backgroundColor: `${colorPalette.primary}20`,
+                                }}
+                              >
+                                {skill}
+                              </span>
+                            )
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Projects */}
-                  {resume.content?.projects?.length > 0 && (
-                    <div className="mb-6">
-                      <h3
-                        className="text-lg font-semibold mb-2 border-b pb-1"
-                        style={{
-                          color: colorPalette.primary,
-                        }}
-                      >
-                        Projects
-                      </h3>
+                  {resume.content?.projects?.length &&
+                    resume.content.projects.length > 0 && (
+                      <div className="mb-6">
+                        <h3
+                          className="text-lg font-semibold mb-2 border-b pb-1"
+                          style={{
+                            color: colorPalette.primary,
+                          }}
+                        >
+                          Projects
+                        </h3>
 
-                      <div className="space-y-4">
-                        {resume.content.projects.map(
-                          (project: any, index: number) => (
-                            <div key={index} className="text-sm">
-                              <div className="font-bold">{project.name}</div>
-                              <p className="mt-1">{project.description}</p>
+                        <div className="space-y-4">
+                          {resume.content.projects.map(
+                            (project: Project, index: number) => (
+                              <div key={index} className="text-sm">
+                                <div className="font-bold">{project.name}</div>
+                                <p className="mt-1">{project.description}</p>
 
-                              {project.technologies && (
-                                <div className="mt-1">
-                                  <span className="font-medium">
-                                    Technologies:
-                                  </span>{" "}
-                                  {project.technologies}
-                                </div>
-                              )}
+                                {project.technologies && (
+                                  <div className="mt-1">
+                                    <span className="font-medium">
+                                      Technologies:
+                                    </span>{" "}
+                                    {project.technologies}
+                                  </div>
+                                )}
 
-                              {project.url && (
-                                <div className="mt-1">
-                                  <span className="font-medium">URL:</span>{" "}
-                                  <a
-                                    href={project.url}
-                                    className="text-blue-600 hover:underline"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    {project.url}
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        )}
+                                {project.url && (
+                                  <div className="mt-1">
+                                    <span className="font-medium">URL:</span>{" "}
+                                    <a
+                                      href={project.url}
+                                      className="text-blue-600 hover:underline"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      {project.url}
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* One-page warning (only visible in preview, not in print) */}
                   {exceedsOnePage && (
@@ -788,7 +865,7 @@ export default function ResumePage() {
               formattingScore={resume.formatScore || 65}
               keywordScore={jobDescMatchPercentage}
               skillsGapScore={
-                resume.formatScore
+                resume.formatScore && resume.atsScore
                   ? Math.round((resume.atsScore + resume.formatScore) / 2)
                   : 60
               }

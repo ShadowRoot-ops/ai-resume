@@ -58,7 +58,7 @@ export type Template = {
   version?: string;
   isPublic: boolean;
   formats?: TemplateFormat[];
-  templateContent?: any; // This would be defined more specifically in a real app
+  templateContent?: Record<string, unknown>; // Replace 'any' with a more specific type
 };
 
 export type TemplateFilters = {

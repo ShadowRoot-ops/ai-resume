@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Config options here
-  webpack: (config, { isServer }) => {
+  webpack: (config, {}) => {
     config.resolve.fallback = {
       fs: false,
       stream: false,

@@ -1,6 +1,6 @@
 // src/app/api/recruiter/resume-match/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import mammoth from "mammoth";

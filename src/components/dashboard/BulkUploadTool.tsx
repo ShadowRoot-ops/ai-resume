@@ -4,14 +4,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  Upload,
-  File,
-  X,
-  CheckCircle,
-  AlertCircle,
-  ChevronLeft,
-} from "lucide-react";
+import { Upload, File, X, CheckCircle, ChevronLeft } from "lucide-react";
 import RecruiterNavbar from "@/components/navigation/RecruiterNavbar";
 
 export default function BulkUploadPage() {
@@ -146,7 +139,7 @@ export default function BulkUploadPage() {
                     Step 2: Upload your filled CSV template (optional)
                   </h3>
                   <p className="text-sm text-gray-500 mb-3">
-                    If you've filled out the CSV template, upload it here.
+                    If you&#39;ve filled out the CSV template, upload it here.
                   </p>
 
                   <div className="flex items-center mt-2">

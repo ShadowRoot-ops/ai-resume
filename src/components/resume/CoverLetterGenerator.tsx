@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { FileUp, FileText, Copy, Download } from "lucide-react";
+import { FileUp, Copy, Download } from "lucide-react";
 import { useCredits } from "@/lib/useCredits"; // Fixed path with proper quotation
 
 export default function CoverLetterGenerator() {

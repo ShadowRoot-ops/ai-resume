@@ -125,7 +125,7 @@ export default async function DashboardPage({
               Welcome back, {clerkUser.firstName || "User"}!
             </h1>
             <p className="text-gray-600 mt-1">
-              Let's create some amazing resumes today
+              Let&#39;s create some amazing resumes today
             </p>
           </div>
 
@@ -216,7 +216,7 @@ export default async function DashboardPage({
 
             {user.credits >= 3 && (
               <p className="text-sm text-green-600 mb-3">
-                You're all set! Create amazing resumes.
+                You&#39;re all set! Create amazing resumes.
               </p>
             )}
 
@@ -519,7 +519,7 @@ export default async function DashboardPage({
                 No resumes yet
               </h3>
               <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                You haven't created any resumes yet. Start building your
+                You haven&#39;t created any resumes yet. Start building your
                 professional portfolio today!
               </p>
               <Link

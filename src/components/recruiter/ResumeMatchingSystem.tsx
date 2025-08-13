@@ -9,18 +9,13 @@ import {
   Filter,
   Download,
   Star,
-  User,
   Clock,
   MapPin,
-  Award,
   Target,
   AlertCircle,
   CheckCircle,
   XCircle,
-  Eye,
-  BarChart3,
   Briefcase,
-  GraduationCap,
   Trash2,
   RefreshCw,
   Settings,
@@ -28,8 +23,6 @@ import {
   TrendingUp,
   Mail,
   Phone,
-  Calendar,
-  Badge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -913,8 +906,10 @@ We are looking for a Senior Software Engineer with:
                     >
                       <option value="">Any</option>
                       <option value="High School">High School</option>
-                      <option value="Bachelor">Bachelor's Degree</option>
-                      <option value="Master">Master's Degree</option>
+                      <option value="Bachelor">
+                        &#39;Bachelor&#39;s Degree
+                      </option>
+                      <option value="Master">Master&#39;s Degree</option>
                       <option value="PhD">PhD</option>
                     </select>
                   </div>

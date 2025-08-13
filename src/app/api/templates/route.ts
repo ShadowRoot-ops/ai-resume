@@ -3,9 +3,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { getOrCreateUser } from "@/lib/user-helpers";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Get user authentication
     const { userId } = await auth();
@@ -14,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Get user from database
-    const user = await getOrCreateUser(userId);
+    // const user = await getOrCreateUser(userId);
 
     // Get templates from the database
     const templates = await prisma.resumeTemplate.findMany({

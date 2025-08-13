@@ -1,7 +1,7 @@
 // src/app/contact/page.tsx
 "use client";
 import React, { useState } from "react";
-import { ArrowLeft, Mail, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, Mail /*, Phone, MapPin */ } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function ContactPage() {
@@ -15,7 +15,9 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleChange = (e) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
@@ -23,7 +25,7 @@ export default function ContactPage() {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -115,8 +117,8 @@ export default function ContactPage() {
               <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg p-6 text-center">
                 <h3 className="text-xl font-medium mb-2">Thank You!</h3>
                 <p>
-                  Your message has been received. We'll get back to you as soon
-                  as possible.
+                  Your message has been received. We&#39;ll get back to you as
+                  soon as possible.
                 </p>
               </div>
             ) : (

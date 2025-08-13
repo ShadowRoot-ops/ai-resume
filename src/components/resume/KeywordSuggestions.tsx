@@ -74,7 +74,7 @@ export default function KeywordSuggestions({
         </div>
       ) : (
         <p className="text-sm text-gray-600">
-          Great! You're using most relevant keywords.
+          Great! You&#39;re using most relevant keywords.
         </p>
       )}
     </div>

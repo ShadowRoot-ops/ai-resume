@@ -2,6 +2,20 @@
 import { prisma } from "@/lib/db";
 import { SubscriptionStatus } from "@prisma/client";
 
+// Define the subscription type to replace 'any'
+type UserSubscription = {
+  plan: string;
+  status: string;
+  monthlyScansUsed: number;
+  lastScanReset: Date;
+  startDate: Date | null;
+  endDate: Date | null;
+  userId?: string;
+  id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+} | null;
+
 export async function isFeatureUnlocked(
   userId: string,
   featureId: string,
@@ -44,7 +58,9 @@ export async function isFeatureUnlocked(
   }
 }
 
-export async function getUserSubscription(userId: string) {
+export async function getUserSubscription(
+  userId: string
+): Promise<UserSubscription> {
   try {
     const subscription = await prisma.subscription.findUnique({
       where: { userId },
@@ -115,7 +131,7 @@ export async function getUnlockedFeatures(userId: string): Promise<string[]> {
       },
     });
 
-    return featureUnlocks.map((unlock) => unlock.feature);
+    return featureUnlocks.map((unlock: { feature: string }) => unlock.feature);
   } catch (error) {
     console.error("Error fetching unlocked features:", error);
     return [];
@@ -129,7 +145,7 @@ export async function canUserAccessFeature(
 ): Promise<{
   canAccess: boolean;
   reason?: string;
-  subscription?: any;
+  subscription?: UserSubscription;
 }> {
   try {
     const subscription = await getUserSubscription(userId);
@@ -215,7 +231,7 @@ export async function incrementMonthlyScans(userId: string): Promise<boolean> {
     const limits = {
       FREE: 3,
       PRO: 999999, // Unlimited for PRO users
-    };
+    } as const;
 
     const limit = limits[subscription.plan as keyof typeof limits] || 0;
 
@@ -253,7 +269,7 @@ export async function getRemainingScans(userId: string): Promise<number> {
     const limits = {
       FREE: 3,
       PRO: 999999,
-    };
+    } as const;
 
     const limit = limits[subscription.plan as keyof typeof limits] || 0;
     const used = subscription.monthlyScansUsed || 0;

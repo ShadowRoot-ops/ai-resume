@@ -98,8 +98,9 @@ export default function PrivacyPolicyPage() {
               ResumeAI uses machine learning algorithms to improve our resume
               generation capabilities. By default, we do not use your personal
               resume content to train our AI models. However, we may use
-              anonymized, aggregated data patterns to improve our algorithms'
-              understanding of effective resume structures and formats.
+              anonymized, aggregated data patterns to improve our
+              algorithms&#39; understanding of effective resume structures and
+              formats.
             </p>
             <p>
               You can opt out of having your anonymized data used for service

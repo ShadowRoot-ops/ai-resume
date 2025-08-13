@@ -56,7 +56,7 @@ const CoverLetterGenerator = dynamic(
 export default function CareerTools() {
   const [activeTab, setActiveTab] = useState("analyze");
   // Fixed: rename the destructured functions to avoid naming conflicts
-  const { checkCredits, spendCredits } = useCredits();
+  const { checkCredits } = useCredits();
 
   const handleTabChange = async (value: string) => {
     // Check credits before allowing tab change
@@ -112,9 +112,10 @@ export default function CareerTools() {
                 <div>
                   <h3 className="font-medium mb-1">Coming Soon</h3>
                   <p className="text-sm text-gray-500">
-                    We're working on an interactive interview preparation tool
-                    to help you practice and perfect your responses to common
-                    interview questions based on your resume and target job.
+                    We&#39;re working on an interactive interview preparation
+                    tool to help you practice and perfect your responses to
+                    common interview questions based on your resume and target
+                    job.
                   </p>
                 </div>
               </div>

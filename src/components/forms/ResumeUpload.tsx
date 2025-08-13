@@ -1,7 +1,6 @@
 // src/components/forms/ResumeUpload.tsx
 "use client";
 import React, { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
   Upload,
   FileText,
@@ -39,14 +38,9 @@ import { toast } from "react-hot-toast";
 import { useCredits } from "@/lib/useCredits";
 
 export default function ResumeUpload() {
-  const router = useRouter();
+  // const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const {
-    credits,
-    loading: creditsLoading,
-    spendCredits,
-    fetchCredits,
-  } = useCredits();
+  const { loading: creditsLoading, spendCredits, fetchCredits } = useCredits();
 
   const [fileName, setFileName] = useState("");
   const [fileUploaded, setFileUploaded] = useState(false);
@@ -57,7 +51,37 @@ export default function ResumeUpload() {
   const [processing, setProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState(0);
   const [analysisComplete, setAnalysisComplete] = useState(false);
-  const [analysisResults, setAnalysisResults] = useState<any>(null);
+  type AnalysisResults = {
+    atsScore?: number;
+    matchScore?: number;
+    keywordMatch?: number;
+    formatScore?: number;
+    missingKeywords?: string[];
+    keywordAnalysis?: {
+      missing?: string[];
+      present?: string[];
+      overused?: string[];
+    };
+    formattingIssues?: string[];
+    improvementAreas?: string[];
+    recommendations?: string[];
+    optimizedContent?: {
+      name?: string;
+      contactInfo?: string;
+      summary?: string;
+      skills?: Record<string, string> | string;
+      experience?: Array<{
+        title?: string;
+        company?: string;
+        dates?: string;
+        responsibilities?: string[];
+      }>;
+      education?: string[] | string;
+    };
+  };
+
+  const [analysisResults, setAnalysisResults] =
+    useState<AnalysisResults | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [activeTab, setActiveTab] = useState("analysis");
   const [error, setError] = useState("");
@@ -203,13 +227,15 @@ export default function ResumeUpload() {
 
       // Refresh credits display
       fetchCredits();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Resume analysis error:", err);
-      setError(
-        err.message || "An error occurred during analysis. Please try again."
-      );
+      let errorMessage = "An error occurred during analysis. Please try again.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
 
-      toast.error(err.message || "Failed to analyze resume");
+      toast.error(errorMessage);
 
       // If the error was related to credits, we should refresh the credits count
       fetchCredits();
@@ -279,17 +305,24 @@ export default function ResumeUpload() {
     // Experience
     if (optimized.experience && Array.isArray(optimized.experience)) {
       content += `EXPERIENCE\n\n`;
-      optimized.experience.forEach((role: any) => {
-        content += `${role.title || ""}\n`;
-        content += `${role.company || ""} | ${role.dates || ""}\n`;
+      optimized.experience.forEach(
+        (role: {
+          title?: string;
+          company?: string;
+          dates?: string;
+          responsibilities?: string[];
+        }) => {
+          content += `${role.title || ""}\n`;
+          content += `${role.company || ""} | ${role.dates || ""}\n`;
 
-        if (Array.isArray(role.responsibilities)) {
-          role.responsibilities.forEach((resp: string) => {
-            content += `- ${resp}\n`;
-          });
+          if (Array.isArray(role.responsibilities)) {
+            role.responsibilities.forEach((resp: string) => {
+              content += `- ${resp}\n`;
+            });
+          }
+          content += "\n";
         }
-        content += "\n";
-      });
+      );
     }
 
     // Education
@@ -600,7 +633,8 @@ export default function ResumeUpload() {
           <DialogHeader>
             <DialogTitle>Resume Analysis Results</DialogTitle>
             <DialogDescription>
-              Here's how your resume matches with the target job description
+              Here&apos;s how your resume matches with the target job
+              description
             </DialogDescription>
           </DialogHeader>
 
@@ -802,7 +836,7 @@ export default function ResumeUpload() {
                       <Target className="h-4 w-4 text-primary" />
                       <AlertTitle>Strategic Recommendations</AlertTitle>
                       <AlertDescription>
-                        Apply these changes to improve your resume's
+                        Apply these changes to improve your resume&apos;s
                         effectiveness for this job
                       </AlertDescription>
                     </Alert>
@@ -871,7 +905,7 @@ export default function ResumeUpload() {
                                   analysisResults.optimizedContent.skills
                                 ).map(
                                   (
-                                    [category, skills]: [string, any],
+                                    [category, skills]: [string, string],
                                     i: number
                                   ) => (
                                     <p key={i}>
@@ -899,7 +933,15 @@ export default function ResumeUpload() {
                             </h3>
                             <div className="space-y-6">
                               {analysisResults.optimizedContent.experience.map(
-                                (role: any, i: number) => (
+                                (
+                                  role: {
+                                    title?: string;
+                                    company?: string;
+                                    dates?: string;
+                                    responsibilities?: string[];
+                                  },
+                                  i: number
+                                ) => (
                                   <div key={i} className="pb-4">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-1">
                                       <h4 className="font-semibold text-primary">

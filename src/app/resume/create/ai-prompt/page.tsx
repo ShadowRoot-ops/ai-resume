@@ -24,7 +24,7 @@ export default function AiPromptPage() {
   const [prompt, setPrompt] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
-  const [activeTab, setActiveTab] = useState("prompt");
+  // Removed unused activeTab state
 
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +104,6 @@ export default function AiPromptPage() {
 
       <Tabs
         defaultValue="prompt"
-        onValueChange={setActiveTab}
         className="w-full"
       >
         <TabsList className="grid w-full grid-cols-2">
@@ -117,7 +116,7 @@ export default function AiPromptPage() {
             <CardHeader>
               <CardTitle>Generate Resume with AI</CardTitle>
               <CardDescription>
-                Tell us about your experience, skills and the job you're
+                Tell us about your experience, skills and the job you&#39;re
                 applying for. Our AI will generate a resume draft for you.
               </CardDescription>
             </CardHeader>
@@ -180,7 +179,7 @@ export default function AiPromptPage() {
             <CardHeader>
               <CardTitle>Upload Your Existing Resume</CardTitle>
               <CardDescription>
-                Upload your current resume and we'll optimize it for your target
+                Upload your current resume and we&#39;ll optimize it for your target
                 job.
               </CardDescription>
             </CardHeader>

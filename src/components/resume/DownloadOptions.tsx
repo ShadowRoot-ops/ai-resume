@@ -567,24 +567,33 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
   <div>
     <div class="section-title">Experience</div>
     ${resume.content.experience
-      .map((exp: any) => {
-        const startDate = exp.startDate
-          ? new Date(exp.startDate).toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            })
-          : "";
-        const endDate = exp.current
-          ? "Present"
-          : exp.endDate
-          ? new Date(exp.endDate).toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            })
-          : "";
-        const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
+      .map(
+        (exp: {
+          position?: string;
+          company?: string;
+          location?: string;
+          startDate?: string;
+          endDate?: string;
+          current?: boolean;
+          responsibilities?: string[];
+        }) => {
+          const startDate = exp.startDate
+            ? new Date(exp.startDate).toLocaleDateString("en-US", {
+                month: "short",
+                year: "numeric",
+              })
+            : "";
+          const endDate = exp.current
+            ? "Present"
+            : exp.endDate
+            ? new Date(exp.endDate).toLocaleDateString("en-US", {
+                month: "short",
+                year: "numeric",
+              })
+            : "";
+          const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
 
-        return `
+          return `
       <div class="experience-item">
         <div>
           <span class="job-title">${exp.position || ""}</span>
@@ -605,7 +614,8 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
         }
       </div>
     `;
-      })
+        }
+      )
       .join("")}
   </div>`
       : ""
@@ -618,23 +628,32 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
   <div>
     <div class="section-title">Education</div>
     ${resume.content.education
-      .map((edu: any) => {
-        const startDate = edu.startDate
-          ? new Date(edu.startDate).getFullYear().toString()
-          : "";
-        const endDate = edu.current
-          ? "Present"
-          : edu.endDate
-          ? new Date(edu.endDate).getFullYear().toString()
-          : "";
-        const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
+      .map(
+        (edu: {
+          degree?: string;
+          fieldOfStudy?: string;
+          institution?: string;
+          startDate?: string;
+          endDate?: string;
+          current?: boolean;
+          gpa?: string | number;
+        }) => {
+          const startDate = edu.startDate
+            ? new Date(edu.startDate).getFullYear().toString()
+            : "";
+          const endDate = edu.current
+            ? "Present"
+            : edu.endDate
+            ? new Date(edu.endDate).getFullYear().toString()
+            : "";
+          const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
 
-        return `
+          return `
       <div class="education-item">
         <div>
           <span class="degree">${edu.degree || ""}${
-          edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
-        }</span>
+            edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
+          }</span>
           <span class="date">${dateRange}</span>
         </div>
         <div class="institution">${edu.institution || ""}</div>
@@ -645,7 +664,8 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
         }
       </div>
     `;
-      })
+        }
+      )
       .join("")}
   </div>`
       : ""
@@ -674,7 +694,12 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
     <div class="section-title">Projects</div>
     ${resume.content.projects
       .map(
-        (project: any) => `
+        (project: {
+          name?: string;
+          description?: string;
+          technologies?: string;
+          url?: string;
+        }) => `
       <div class="project">
         <div class="project-name">${project.name || ""}</div>
         ${
@@ -771,41 +796,51 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
         textContent += "EXPERIENCE\n";
         textContent += "==========\n\n";
 
-        resume.content.experience.forEach((exp: any) => {
-          textContent += `${exp.position || "Position"}\n`;
-          textContent += `${exp.company || "Company"}${
-            exp.location ? `, ${exp.location}` : ""
-          }\n`;
+        resume.content.experience.forEach(
+          (exp: {
+            position?: string;
+            company?: string;
+            location?: string;
+            startDate?: string;
+            endDate?: string;
+            current?: boolean;
+            responsibilities?: string[];
+          }) => {
+            textContent += `${exp.position || "Position"}\n`;
+            textContent += `${exp.company || "Company"}${
+              exp.location ? `, ${exp.location}` : ""
+            }\n`;
 
-          const startDate = exp.startDate
-            ? new Date(exp.startDate).toLocaleDateString("en-US", {
-                month: "short",
-                year: "numeric",
-              })
-            : "";
-          const endDate = exp.current
-            ? "Present"
-            : exp.endDate
-            ? new Date(exp.endDate).toLocaleDateString("en-US", {
-                month: "short",
-                year: "numeric",
-              })
-            : "";
-          const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
+            const startDate = exp.startDate
+              ? new Date(exp.startDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  year: "numeric",
+                })
+              : "";
+            const endDate = exp.current
+              ? "Present"
+              : exp.endDate
+              ? new Date(exp.endDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  year: "numeric",
+                })
+              : "";
+            const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
 
-          if (dateRange) {
-            textContent += dateRange + "\n";
+            if (dateRange) {
+              textContent += dateRange + "\n";
+            }
+
+            if (exp.responsibilities && exp.responsibilities.length > 0) {
+              textContent += "\nKey Responsibilities:\n";
+              exp.responsibilities.forEach((resp: string) => {
+                textContent += `• ${resp}\n`;
+              });
+            }
+
+            textContent += "\n" + "-".repeat(50) + "\n\n";
           }
-
-          if (exp.responsibilities && exp.responsibilities.length > 0) {
-            textContent += "\nKey Responsibilities:\n";
-            exp.responsibilities.forEach((resp: string) => {
-              textContent += `• ${resp}\n`;
-            });
-          }
-
-          textContent += "\n" + "-".repeat(50) + "\n\n";
-        });
+        );
       }
 
       // Education
@@ -813,32 +848,42 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
         textContent += "EDUCATION\n";
         textContent += "=========\n\n";
 
-        resume.content.education.forEach((edu: any) => {
-          textContent += `${edu.degree || "Degree"}${
-            edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
-          }\n`;
-          textContent += `${edu.institution || "Institution"}\n`;
+        resume.content.education.forEach(
+          (edu: {
+            degree?: string;
+            fieldOfStudy?: string;
+            institution?: string;
+            startDate?: string;
+            endDate?: string;
+            current?: boolean;
+            gpa?: string | number;
+          }) => {
+            textContent += `${edu.degree || "Degree"}${
+              edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
+            }\n`;
+            textContent += `${edu.institution || "Institution"}\n`;
 
-          const startDate = edu.startDate
-            ? new Date(edu.startDate).getFullYear().toString()
-            : "";
-          const endDate = edu.current
-            ? "Present"
-            : edu.endDate
-            ? new Date(edu.endDate).getFullYear().toString()
-            : "";
-          const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
+            const startDate = edu.startDate
+              ? new Date(edu.startDate).getFullYear().toString()
+              : "";
+            const endDate = edu.current
+              ? "Present"
+              : edu.endDate
+              ? new Date(edu.endDate).getFullYear().toString()
+              : "";
+            const dateRange = [startDate, endDate].filter(Boolean).join(" - ");
 
-          if (dateRange) {
-            textContent += dateRange + "\n";
+            if (dateRange) {
+              textContent += dateRange + "\n";
+            }
+
+            if (edu.gpa) {
+              textContent += `GPA: ${edu.gpa}\n`;
+            }
+
+            textContent += "\n" + "-".repeat(30) + "\n\n";
           }
-
-          if (edu.gpa) {
-            textContent += `GPA: ${edu.gpa}\n`;
-          }
-
-          textContent += "\n" + "-".repeat(30) + "\n\n";
-        });
+        );
       }
 
       // Skills
@@ -862,23 +907,30 @@ const DownloadOptions: React.FC<DownloadOptionsProps> = ({
         textContent += "PROJECTS\n";
         textContent += "========\n\n";
 
-        resume.content.projects.forEach((project: any) => {
-          textContent += `${project.name || "Project Name"}\n`;
+        resume.content.projects.forEach(
+          (project: {
+            name?: string;
+            description?: string;
+            technologies?: string;
+            url?: string;
+          }) => {
+            textContent += `${project.name || "Project Name"}\n`;
 
-          if (project.description) {
-            textContent += `Description: ${project.description}\n`;
+            if (project.description) {
+              textContent += `Description: ${project.description}\n`;
+            }
+
+            if (project.technologies) {
+              textContent += `Technologies: ${project.technologies}\n`;
+            }
+
+            if (project.url) {
+              textContent += `URL: ${project.url}\n`;
+            }
+
+            textContent += "\n" + "-".repeat(30) + "\n\n";
           }
-
-          if (project.technologies) {
-            textContent += `Technologies: ${project.technologies}\n`;
-          }
-
-          if (project.url) {
-            textContent += `URL: ${project.url}\n`;
-          }
-
-          textContent += "\n" + "-".repeat(30) + "\n\n";
-        });
+        );
       }
 
       const blob = new Blob([textContent], {

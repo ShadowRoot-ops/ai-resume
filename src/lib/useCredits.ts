@@ -78,9 +78,13 @@ export function useCredits() {
       }
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error checking credits:", error);
-      toast.error(error.message || "Failed to verify credits availability");
+      const errorMessage =
+        typeof error === "object" && error !== null && "message" in error
+          ? (error as { message?: string }).message
+          : "Failed to verify credits availability";
+      toast.error(errorMessage || "Failed to verify credits availability");
       return false;
     } finally {
       setLoading(false);
@@ -116,9 +120,13 @@ export function useCredits() {
 
         setCredits(data.remainingCredits);
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error using credits:", error);
-        toast.error(error.message || "Failed to process credit usage");
+        const errorMessage =
+          typeof error === "object" && error !== null && "message" in error
+            ? (error as { message?: string }).message
+            : "Failed to process credit usage";
+        toast.error(errorMessage || "Failed to process credit usage");
         return false;
       } finally {
         setLoading(false);
@@ -159,9 +167,13 @@ export function useCredits() {
 
         setCredits(data.remainingCredits);
         return true;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error using credits:", error);
-        toast.error(error.message || "Failed to process credit usage");
+        const errorMessage =
+          typeof error === "object" && error !== null && "message" in error
+            ? (error as { message?: string }).message
+            : "Failed to process credit usage";
+        toast.error(errorMessage || "Failed to process credit usage");
         return false;
       } finally {
         setLoading(false);

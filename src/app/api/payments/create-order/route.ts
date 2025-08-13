@@ -4,6 +4,16 @@ import { prisma } from "@/lib/db";
 import { getOrCreateUser } from "@/lib/user-helpers";
 import Razorpay from "razorpay";
 
+// Define RazorpayError type for better type safety
+interface RazorpayError {
+  statusCode?: number;
+  error?: {
+    description?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
@@ -161,6 +171,7 @@ export async function POST(request: Request) {
       "Error stack:",
       error instanceof Error ? error.stack : "No stack trace"
     );
+    console.error("Razorpay validation error:", (error as RazorpayError).error);
 
     // Handle specific Razorpay errors
     if (
@@ -170,15 +181,19 @@ export async function POST(request: Request) {
       error.statusCode === 400 &&
       "error" in error
     ) {
-      console.error("Razorpay validation error:", (error as any).error);
+      console.error(
+        "Razorpay validation error:",
+        (error as RazorpayError).error
+      );
       return NextResponse.json(
         {
           error: "Payment order validation failed",
           message:
-            (error as any).error.description || "Invalid request parameters",
+            (error as RazorpayError).error?.description ||
+            "Invalid request parameters",
           debug:
             process.env.NODE_ENV === "development"
-              ? (error as any).error
+              ? (error as RazorpayError).error
               : undefined,
         },
         { status: 400 }

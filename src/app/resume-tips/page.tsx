@@ -28,7 +28,7 @@ export default function ResumeTipsPage() {
           <p className="text-xl text-gray-600 mb-12 max-w-3xl">
             Even with AI assistance, understanding resume best practices helps
             you create the most effective document. Here are our expert tips to
-            maximize your resume's impact.
+            maximize your resume&#39;s impact.
           </p>
 
           <div className="space-y-16">
@@ -135,7 +135,8 @@ export default function ResumeTipsPage() {
                     <li className="flex">
                       <Check className="mr-2 h-5 w-5 flex-shrink-0 mt-0.5" />
                       <span>
-                        Tailor content to match the job description's keywords
+                        Tailor content to match the job description&#39;s
+                        keywords
                       </span>
                     </li>
                     <li className="flex">
@@ -171,7 +172,10 @@ export default function ResumeTipsPage() {
                     </li>
                     <li className="flex">
                       <AlertTriangle className="mr-2 h-5 w-5 flex-shrink-0 mt-0.5" />
-                      <span>Writing in first person (using "I" or "my")</span>
+                      <span>
+                        Writing in first person (using &quot;I&quot; or
+                        &quot;my&quot;)
+                      </span>
                     </li>
                     <li className="flex">
                       <AlertTriangle className="mr-2 h-5 w-5 flex-shrink-0 mt-0.5" />
@@ -307,7 +311,7 @@ export default function ResumeTipsPage() {
                   <ul className="space-y-3 text-red-800">
                     <li className="flex">
                       <AlertTriangle className="mr-2 h-5 w-5 flex-shrink-0 mt-0.5" />
-                      <span>Including every job you've ever held</span>
+                      <span>Including every job you&#39;ve ever held</span>
                     </li>
                     <li className="flex">
                       <AlertTriangle className="mr-2 h-5 w-5 flex-shrink-0 mt-0.5" />

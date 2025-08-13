@@ -2,8 +2,6 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
-import { getOrCreateUser } from "@/lib/user-helpers";
 
 // Industry-specific keyword collections
 const industryKeywords = {
@@ -235,13 +233,13 @@ function mapJobTitleToIndustry(jobTitle: string): string[] {
 export async function GET(request: Request) {
   try {
     // Get user authentication
-    const { userId } = auth();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Get user from database
-    const user = await getOrCreateUser(userId);
+    // const user = await getOrCreateUser(userId);
 
     // Get query parameters
     const url = new URL(request.url);

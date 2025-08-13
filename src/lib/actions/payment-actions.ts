@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getOrCreateUser } from "@/lib/user-helpers";
 import Razorpay from "razorpay";
 import { revalidatePath } from "next/cache";
+import crypto from "crypto";
 
 const razorpay = new Razorpay({
   key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
@@ -132,10 +133,9 @@ export async function verifyPayment(
     console.log("Verifying payment for user:", userId);
     console.log("Razorpay Order ID:", razorpayOrderId);
     console.log("Razorpay Payment ID:", razorpayPaymentId);
-
-    const crypto = require("crypto");
+    // 'crypto' is already imported at the top of the file
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET as string)
       .update(razorpayOrderId + "|" + razorpayPaymentId)
       .digest("hex");
 

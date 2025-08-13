@@ -45,7 +45,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
   const updateEducation = (
     index: number,
     field: keyof Education,
-    value: any
+    value: string | Date | boolean | undefined
   ) => {
     const updatedEducation = [...education];
     updatedEducation[index] = { ...updatedEducation[index], [field]: value };

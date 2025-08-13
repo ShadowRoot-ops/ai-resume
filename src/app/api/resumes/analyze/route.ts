@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Mock database operations for testing
 const mockDb = {
   user: {
-    findUnique: async (query: any) => ({
+    findUnique: async () => ({
       id: "user-123",
       clerkId: "user-456",
       credits: 10,
@@ -12,7 +12,37 @@ const mockDb = {
       creditUsage: [],
     }),
   },
-  $transaction: async (callback: any) => {
+  $transaction: async (
+    callback: (tx: {
+      user: {
+        update: (args: {
+          where: { id: string };
+          data: { credits: { decrement: number } };
+        }) => Promise<{ id: string; credits: number }>;
+      };
+      creditUsage: {
+        create: (args: {
+          data: {
+            userId: string;
+            amount: number;
+            service: string;
+            description: string;
+          };
+        }) => Promise<{ id: string }>;
+      };
+      resumeAnalysis: {
+        create: (args: {
+          data: {
+            userId: string;
+            jobDescription: string;
+            atsScore: number;
+            matchScore: number;
+            analysisData: Record<string, unknown>;
+          };
+        }) => Promise<{ id: string }>;
+      };
+    }) => Promise<void>
+  ) => {
     // Mock transaction
     await callback({
       user: {
@@ -37,14 +67,12 @@ export async function POST(req: NextRequest) {
     // }
 
     // Mock userId for testing
-    const userId = "test-user-123";
+    // const userId = "test-user-123";
 
     console.log("API route hit successfully!");
 
     // Get user from database (using mock for now)
-    const user = await mockDb.user.findUnique({
-      where: { clerkId: userId },
-    });
+    const user = await mockDb.user.findUnique();
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -103,52 +131,78 @@ export async function POST(req: NextRequest) {
     );
 
     // Mock transaction for testing
-    await mockDb.$transaction(async (tx: any) => {
-      await tx.user.update({
-        where: { id: user.id },
-        data: { credits: { decrement: 1 } },
-      });
+    await mockDb.$transaction(
+      async (tx: {
+        user: {
+          update: (args: {
+            where: { id: string };
+            data: { credits: { decrement: number } };
+          }) => Promise<{ id: string; credits: number }>;
+        };
+        creditUsage: {
+          create: (args: {
+            data: {
+              userId: string;
+              amount: number;
+              service: string;
+              description: string;
+            };
+          }) => Promise<{ id: string }>;
+        };
+        resumeAnalysis: {
+          create: (args: {
+            data: {
+              userId: string;
+              jobDescription: string;
+              atsScore: number;
+              matchScore: number;
+              analysisData: Record<string, unknown>;
+            };
+          }) => Promise<{ id: string }>;
+        };
+      }) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { credits: { decrement: 1 } },
+        });
 
-      await tx.creditUsage.create({
-        data: {
-          userId: user.id,
-          amount: 1,
-          service: "resume_analyze",
-          description: "Resume analysis and optimization",
-        },
-      });
-
-      if (analysis) {
-        await tx.resumeAnalysis.create({
+        await tx.creditUsage.create({
           data: {
             userId: user.id,
-            jobDescription,
-            atsScore: analysis.atsScore || 0,
-            matchScore: analysis.matchScore || 0,
-            analysisData: analysis as any,
+            amount: 1,
+            service: "resume_analyze",
+            description: "Resume analysis and optimization",
           },
         });
+
+        if (analysis) {
+          await tx.resumeAnalysis.create({
+            data: {
+              userId: user.id,
+              jobDescription,
+              atsScore: analysis.atsScore || 0,
+              matchScore: analysis.matchScore || 0,
+              analysisData: analysis as Record<string, unknown>,
+            },
+          });
+        }
       }
-    });
+    );
 
     console.log("Analysis completed successfully");
 
     // Return analysis results in the format expected by frontend
     return NextResponse.json({
       success: true,
-      atsScore: analysis.atsScore,
-      matchScore: analysis.matchScore,
-      missingKeywords: analysis.missingKeywords,
-      strengths: analysis.strengths,
-      recommendations: analysis.recommendations,
-      keywordAnalysis: analysis.keywordAnalysis,
-      country: analysis.country,
       ...analysis,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Resume analysis error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to analyze resume" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to analyze resume",
+      },
       { status: 500 }
     );
   }
@@ -209,12 +263,30 @@ async function extractTextFromFile(file: File): Promise<string | null> {
   }
 }
 
+type ResumeAnalysis = {
+  atsScore: number;
+  matchScore: number;
+  missingKeywords: string[];
+  strengths: string[];
+  recommendations: string[];
+  keywordAnalysis: {
+    missing: string[];
+    present: string[];
+    overused: string[];
+    total: number;
+    matched: number;
+  };
+  country: string;
+  resumeLength: number;
+  jobDescriptionLength: number;
+};
+
 async function analyzeResumeWithAI(
   resumeText: string,
   jobDescription: string,
   customPrompt: string,
   country?: string
-): Promise<any> {
+): Promise<ResumeAnalysis> {
   try {
     // For testing, return mock analysis
     return generateMockAnalysis(resumeText, jobDescription, country);
@@ -254,8 +326,8 @@ function generateMockAnalysis(
     .slice(0, 15);
 
   // Extract some keywords from resume
-  const resumeWords = resumeText.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
-  const resumeKeywords = [...new Set(resumeWords)].slice(0, 10);
+  // const resumeWords = resumeText.toLowerCase().match(/\b[a-z]{3,}\b/g) || [];
+  // const resumeKeywords = [...new Set(resumeWords)].slice(0, 10);
 
   // Find missing keywords (keywords in job description but not in resume)
   const missingKeywords = uniqueKeywords

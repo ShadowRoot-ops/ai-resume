@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 // Function to clean HTML for better DOCX conversion
 function cleanHTMLForDOCX(html: string): string {
   // Remove unwanted classes and elements that don't convert well
-  let cleanedHTML = html
+  const cleanedHTML = html
     // Remove print-specific classes
     .replace(/class="[^"]*print[^"]*"/g, "")
     // Remove sidebar and navigation elements

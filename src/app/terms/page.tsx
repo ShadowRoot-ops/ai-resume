@@ -29,9 +29,10 @@ export default function TermsPage() {
 
           <div className="prose prose-lg max-w-none">
             <p>
-              Welcome to ResumeAI. These Terms of Service ("Terms") govern your
-              use of our website and services offered by ResumeAI ("Service").
-              Please read these Terms carefully before using our Service.
+              Welcome to ResumeAI. These Terms of Service (&quot;Terms&quot;)
+              govern your use of our website and services offered by ResumeAI
+              (&quot;Service&quot;). Please read these Terms carefully before
+              using our Service.
             </p>
             <p>
               By accessing or using the Service, you agree to be bound by these
@@ -81,8 +82,9 @@ export default function TermsPage() {
             </h2>
             <p>
               Our Service allows you to create resumes and related materials
-              ("User Content"). You retain all rights in, and are solely
-              responsible for, the User Content you create using our Service.
+              (&quot;User Content&quot;). You retain all rights in, and are
+              solely responsible for, the User Content you create using our
+              Service.
             </p>
             <p>
               By creating User Content with our Service, you grant us a

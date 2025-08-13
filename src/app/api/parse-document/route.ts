@@ -36,10 +36,13 @@ export async function POST(req: NextRequest) {
       success: true,
       text: parsedText,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Document parsing error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to parse document" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to parse document",
+      },
       { status: 500 }
     );
   }

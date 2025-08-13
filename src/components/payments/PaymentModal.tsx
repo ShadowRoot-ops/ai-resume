@@ -1,6 +1,8 @@
 // src/components/payment/PaymentModal.tsx
+"use client";
 
 import React, { useState } from "react";
+import { RazorpayOptions, RazorpayPaymentResponse } from "@/lib/razorpay";
 import {
   Dialog,
   DialogContent,
@@ -14,9 +16,39 @@ import { Loader2 } from "lucide-react";
 
 declare global {
   interface Window {
-    Razorpay: any;
+    Razorpay: new (
+      options: RazorpayOptions
+    ) => import("@/lib/razorpay").RazorpayInstance;
   }
 }
+
+// interface RazorpayOptions {
+//   key: string;
+//   amount: number;
+//   currency: string;
+//   name: string;
+//   description: string;
+//   order_id?: string;
+//   subscription_id?: string;
+//   handler: (response: RazorpayPaymentResponse) => void;
+//   prefill?: {
+//     name?: string;
+//     email?: string;
+//     contact?: string;
+//   };
+//   theme?: {
+//     color?: string;
+//   };
+//   modal?: {
+//     ondismiss?: () => void;
+//   };
+// }
+
+// interface RazorpayPaymentResponse {
+//   razorpay_payment_id: string;
+//   razorpay_order_id: string;
+//   razorpay_signature: string;
+// }
 
 interface PaymentModalProps {
   open: boolean;
@@ -27,7 +59,11 @@ interface PaymentModalProps {
   paymentType: "oneTime" | "subscription";
   resumeId?: string;
   feature?: string;
-  onSuccess?: (data: any) => void;
+  onSuccess?: (data: {
+    success: boolean;
+    message?: string;
+    [key: string]: unknown;
+  }) => void;
 }
 
 export default function PaymentModal({
@@ -80,16 +116,14 @@ export default function PaymentModal({
       }
 
       // Create Razorpay instance
-      const options = {
+      const options: RazorpayOptions = {
         key: data.keyId,
         amount: data.amount,
         currency: data.currency,
         name: "Resume.AI Builder",
         description: description,
-        order_id: data.orderId,
-        subscription_id:
-          paymentType === "subscription" ? data.orderId : undefined,
-        handler: async function (response: any) {
+        order_id: paymentType === "oneTime" ? data.orderId : undefined,
+        handler: async function (response: RazorpayPaymentResponse) {
           try {
             // Verify payment on server
             const verifyResponse = await fetch("/api/payments/verify", {
@@ -109,14 +143,11 @@ export default function PaymentModal({
 
             const result = await verifyResponse.json();
 
-            // Close modal
             onClose();
 
-            // Show success state or navigate
             if (onSuccess) {
               onSuccess(result);
             } else {
-              // Refresh the page to show updated state
               router.refresh();
             }
           } catch (error) {

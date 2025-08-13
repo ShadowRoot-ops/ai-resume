@@ -29,7 +29,12 @@ export default function TemplateSelection({
   const [templates, setTemplates] = useState<TemplateProps[]>([]);
   const [category, setCategory] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [subscription, setSubscription] = useState<any>(null);
+  interface Subscription {
+    plan: string;
+    [key: string]: unknown; // Add more fields if needed
+  }
+
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   useEffect(() => {
     // Fetch templates

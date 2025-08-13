@@ -36,8 +36,10 @@ export default function DebugTools() {
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

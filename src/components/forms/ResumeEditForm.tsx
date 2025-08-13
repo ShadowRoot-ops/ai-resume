@@ -35,8 +35,27 @@ const formSchema = z.object({
   skills: z.array(z.string()).optional(),
 });
 
+type Resume = {
+  id: string;
+  title: string;
+  templateId: string;
+  colorPaletteIndex?: number;
+  jobTitle?: string;
+  content: {
+    summary?: string;
+    skills?: string[];
+    personalInfo?: {
+      name?: string;
+    };
+    experience?: Array<{
+      company?: string;
+      date?: string;
+    }>;
+  };
+};
+
 type ResumeEditFormProps = {
-  resume: any;
+  resume: Resume;
 };
 
 export default function ResumeEditForm({ resume }: ResumeEditFormProps) {
@@ -165,14 +184,18 @@ export default function ResumeEditForm({ resume }: ResumeEditFormProps) {
         );
       }
 
-      const data = await response.json();
+      // const data = await response.json();
 
       // Redirect to view resume
       router.push(`/resume/${resume.id}`);
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Update failed:", error);
-      setError(error.message || "Failed to update resume");
+      if (error instanceof Error) {
+        setError(error.message || "Failed to update resume");
+      } else {
+        setError("Failed to update resume");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -218,7 +241,7 @@ export default function ResumeEditForm({ resume }: ResumeEditFormProps) {
             <FormField
               control={form.control}
               name="skills"
-              render={({ field }) => (
+              render={({}) => (
                 <FormItem>
                   <FormLabel>Skills</FormLabel>
 

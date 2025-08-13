@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { getOrCreateUser } from "@/lib/user-helpers";
 
 // Create a new resume
-export async function POST(request: Request) {
+import type { NextRequest } from "next/server";
+
+export async function POST(request: NextRequest) {
   try {
     const { userId } = getAuth(request);
 
@@ -80,9 +82,7 @@ export async function POST(request: Request) {
     );
   }
 }
-
-// Get all resumes for the authenticated user
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = getAuth(request);
 
@@ -114,7 +114,48 @@ export async function GET(request: Request) {
 }
 
 // Helper function to calculate ATS score
-function calculateAtsScore(resumeData: any): number {
+interface ResumeData {
+  title: string;
+  jobTitle?: string;
+  jobDescription?: string;
+  companyTargeted?: string;
+  templateId?: string;
+  colorPaletteIndex?: number;
+  fontFamily?: string;
+  personalInfo?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    [key: string]: unknown;
+  };
+  summary?: string;
+  experience?: {
+    company?: string;
+    position?: string;
+    startDate?: string;
+    endDate?: string;
+    description?: string;
+    [key: string]: unknown;
+  }[];
+  education?: {
+    institution?: string;
+    degree?: string;
+    startDate?: string;
+    endDate?: string;
+    [key: string]: unknown;
+  }[];
+  skills?: string[];
+  projects?: {
+    name?: string;
+    description?: string;
+    link?: string;
+    [key: string]: unknown;
+  }[];
+  analysisData?: object;
+}
+
+function calculateAtsScore(resumeData: ResumeData): number {
   let score = 60; // Base score
 
   // Check if there's a job description to compare against

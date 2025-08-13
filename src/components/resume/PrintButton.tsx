@@ -42,7 +42,7 @@ export default function PrintButton({
             allStyles += rule.cssText + "\n";
           });
         }
-      } catch (e) {
+      } catch {
         // Handle CORS issues with external stylesheets
         if (styleSheet.href) {
           allStyles += `@import url("${styleSheet.href}");\n`;

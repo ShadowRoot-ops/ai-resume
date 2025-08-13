@@ -118,7 +118,11 @@ export async function extractTextFromResume(
             return textContent;
           }
 
-          throw new Error(`Failed to parse PDF: ${pdfError.message}`);
+          throw new Error(
+            `Failed to parse PDF: ${
+              pdfError instanceof Error ? pdfError.message : String(pdfError)
+            }`
+          );
         }
 
       case "doc":
@@ -131,7 +135,11 @@ export async function extractTextFromResume(
           return docData.value || "";
         } catch (docError) {
           console.error("Word document parsing error:", docError);
-          throw new Error(`Failed to parse Word document: ${docError.message}`);
+          throw new Error(
+            `Failed to parse Word document: ${
+              docError instanceof Error ? docError.message : String(docError)
+            }`
+          );
         }
 
       case "txt":
@@ -153,11 +161,20 @@ export async function extractTextFromResume(
   }
 }
 
+export interface ResumeAnalysisResult {
+  atsScore: number;
+  matchScore: number;
+  missingKeywords: string[];
+  recommendations: string[];
+  strengths: string[];
+  extractedText: string;
+}
+
 export async function analyzeResume(
   resumeBuffer: Buffer,
   fileName: string,
   jobDescription: string
-): Promise<any> {
+): Promise<ResumeAnalysisResult> {
   try {
     console.log("=== STARTING RESUME ANALYSIS ===");
     console.log("File name:", fileName);
@@ -280,7 +297,15 @@ Respond only with the JSON object, no additional text.`,
       console.log("Successfully parsed OpenAI response");
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
-      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+      throw new Error(
+        `Failed to parse AI response: ${
+          typeof parseError === "object" &&
+          parseError !== null &&
+          "message" in parseError
+            ? (parseError as { message?: string }).message
+            : String(parseError)
+        }`
+      );
     }
 
     // Ensure all required fields exist with proper types and bounds
@@ -290,17 +315,17 @@ Respond only with the JSON object, no additional text.`,
       missingKeywords: Array.isArray(analysis.missingKeywords)
         ? analysis.missingKeywords
             .slice(0, 10)
-            .filter((k) => typeof k === "string" && k.trim())
+            .filter((k: string) => typeof k === "string" && k.trim())
         : [],
       recommendations: Array.isArray(analysis.recommendations)
         ? analysis.recommendations
             .slice(0, 8)
-            .filter((r) => typeof r === "string" && r.trim())
+            .filter((r: string) => typeof r === "string" && r.trim())
         : [],
       strengths: Array.isArray(analysis.strengths)
         ? analysis.strengths
             .slice(0, 5)
-            .filter((s) => typeof s === "string" && s.trim())
+            .filter((s: string) => typeof s === "string" && s.trim())
         : [],
       extractedText:
         resumeText.substring(0, 1000) + (resumeText.length > 1000 ? "..." : ""),
@@ -318,12 +343,42 @@ Respond only with the JSON object, no additional text.`,
   }
 }
 
+export interface GeneratedResume {
+  personalInfo: {
+    name: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedin: string;
+    website: string;
+  };
+  summary: string;
+  experience: Array<{
+    company: string;
+    position: string;
+    date: string;
+    location: string;
+    responsibilities: string[];
+  }>;
+  education: Array<{
+    institution: string;
+    degree: string;
+    date: string;
+    gpa: string;
+  }>;
+  skills: string[];
+  projects: Array<{
+    name: string;
+    description: string;
+    technologies: string;
+  }>;
+}
+
 export async function generateResumeFromText(
   resumeText: string,
   jobDescription: string,
-  companyName: string = "",
-  templateId: string = "professional"
-): Promise<any> {
+  companyName: string = ""
+): Promise<GeneratedResume> {
   try {
     console.log("=== STARTING RESUME GENERATION ===");
     console.log("Resume text length:", resumeText.length);
@@ -430,7 +485,13 @@ Create an optimized resume that will maximize the chances of getting an intervie
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
       throw new Error(
-        `Failed to parse generated resume: ${parseError.message}`
+        `Failed to parse generated resume: ${
+          typeof parseError === "object" &&
+          parseError !== null &&
+          "message" in parseError
+            ? (parseError as { message?: string }).message
+            : String(parseError)
+        }`
       );
     }
   } catch (error) {
@@ -450,9 +511,10 @@ export async function generateResume(
   jobDescription: string,
   companyName: string = "",
   templateId: string = "professional"
-): Promise<any> {
+): Promise<GeneratedResume> {
   try {
     console.log("=== STARTING RESUME GENERATION PROCESS ===");
+    console.log("Template ID:", templateId); // Use templateId to avoid unused variable warning
 
     // First extract text from the resume
     let resumeText = "";
@@ -473,7 +535,11 @@ export async function generateResume(
     } catch (extractError) {
       console.error("Text extraction failed:", extractError);
       throw new Error(
-        `Could not extract text from resume: ${extractError.message}`
+        `Could not extract text from resume: ${
+          extractError instanceof Error
+            ? extractError.message
+            : String(extractError)
+        }`
       );
     }
 
@@ -481,8 +547,7 @@ export async function generateResume(
     return await generateResumeFromText(
       resumeText,
       jobDescription,
-      companyName,
-      templateId
+      companyName
     );
   } catch (error) {
     console.error("Error in resume generation process:", error);

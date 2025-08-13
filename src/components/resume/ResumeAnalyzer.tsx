@@ -22,15 +22,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import AtsScoreBadge from "./AtsScoreBadge";
-import {
-  FileUp,
-  Search,
-  Briefcase,
-  DollarSign,
-  MessageSquare,
-} from "lucide-react";
+import { FileUp, Briefcase } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCredits } from "@/lib/useCredits";
 
 export default function ResumeAnalyzer() {
@@ -38,9 +31,18 @@ export default function ResumeAnalyzer() {
   const [jobDescription, setJobDescription] = useState("");
   const [country, setCountry] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  interface ResumeAnalysisResults {
+    atsScore: number;
+    matchScore: number;
+    missingKeywords: string[];
+    strengths: string[];
+    recommendations: string[];
+    // Add other fields as needed based on your API response
+  }
+
+  const [results, setResults] = useState<ResumeAnalysisResults | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+
   // Fixed: rename the destructured function to avoid naming conflicts
   const { spendCredits } = useCredits();
 
@@ -218,7 +220,7 @@ export default function ResumeAnalyzer() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500">
-                We'll tailor our analysis to the selected job market
+                We&#39;ll tailor our analysis to the selected job market
               </p>
             </div>
 

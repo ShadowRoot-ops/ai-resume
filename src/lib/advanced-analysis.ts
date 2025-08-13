@@ -1,18 +1,17 @@
 // src/lib/advanced-analysis.ts
 import OpenAI from "openai";
-import { prisma } from "./db";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-interface AdvancedAnalysisOptions {
-  resumeText: string;
-  jobDescription: string;
-  industry?: string;
-  experienceLevel?: "entry" | "mid" | "senior" | "executive";
-  targetATS?: string;
-}
+// interface AdvancedAnalysisOptions {
+//   resumeText: string;
+//   jobDescription: string;
+//   industry?: string;
+//   experienceLevel?: "entry" | "mid" | "senior" | "executive";
+//   targetATS?: string;
+// }
 
 interface SalaryData {
   min: number;
@@ -25,7 +24,12 @@ interface SalaryData {
 export async function checkATSCompatibility(
   resumeText: string,
   atsSystem: string
-): Promise<any> {
+): Promise<{
+  compatibilityScore: number;
+  specificIssues: string[];
+  formatRecommendations: string[];
+  keywordRecommendations: string[];
+}> {
   try {
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
@@ -67,7 +71,13 @@ export async function analyzeForIndustry(
   resumeText: string,
   jobDescription: string,
   industry: string
-): Promise<any> {
+): Promise<{
+  industryFit: number;
+  industryCriticalKeywords: string[];
+  missingIndustryKeywords: string[];
+  industryTrendsToHighlight: string[];
+  industryCertificationsToAdd: string[];
+}> {
   try {
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
@@ -110,7 +120,13 @@ export async function optimizeForExperienceLevel(
   resumeText: string,
   jobDescription: string,
   experienceLevel: string
-): Promise<any> {
+): Promise<{
+  levelAppropriatenessScore: number;
+  contentRecommendations: string[];
+  skillEmphasisSuggestions: string[];
+  experienceHighlightTips: string[];
+  careerProgressionAdvice: string[];
+}> {
   try {
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
@@ -258,10 +274,18 @@ export async function predictSalaryRange(
 }
 
 // Generate career path suggestions
+export interface CareerPathSuggestion {
+  nextRoles: string[];
+  skillsToAcquire: string[];
+  certificationsSuggestions: string[];
+  timelineEstimate: string;
+  industryTrends: string[];
+}
+
 export async function suggestCareerPath(
   resumeText: string,
   currentRole: string
-): Promise<any> {
+): Promise<CareerPathSuggestion> {
   try {
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
@@ -291,6 +315,12 @@ export async function suggestCareerPath(
     return JSON.parse(responseContent || "{}");
   } catch (error) {
     console.error("Career path suggestion error:", error);
-    return {};
+    return {
+      nextRoles: [],
+      skillsToAcquire: [],
+      certificationsSuggestions: [],
+      timelineEstimate: "",
+      industryTrends: [],
+    };
   }
 }

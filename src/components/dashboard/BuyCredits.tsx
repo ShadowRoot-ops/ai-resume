@@ -30,6 +30,16 @@ import {
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
+// Razorpay response types
+interface RazorpayPaymentResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+// Razorpay callback function type
+type RazorpayHandlerCallback = (response: RazorpayPaymentResponse) => void;
+
 // Define RazorpayOptions interface
 interface RazorpayOptions {
   key: string;
@@ -38,7 +48,7 @@ interface RazorpayOptions {
   name: string;
   description: string;
   order_id: string;
-  handler: (response: any) => void;
+  handler: RazorpayHandlerCallback;
   prefill?: {
     name?: string;
     email?: string;
@@ -50,18 +60,39 @@ interface RazorpayOptions {
   theme?: {
     color?: string;
   };
+  modal?: {
+    ondismiss?: () => void;
+  };
 }
 
-// Define Razorpay in window
-// src/components/dashboard/BuyCredits.tsx (continued)
+// Razorpay instance interface
+interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, callback: (data: unknown) => void) => void;
+  close: () => void;
+}
+
+// Define Razorpay in window - using a unique namespace to avoid conflicts
 declare global {
   interface Window {
-    Razorpay: new (options: RazorpayOptions) => {
-      open: () => void;
-      on: (event: string, callback: Function) => void;
-      close: () => void;
-    };
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
   }
+}
+
+// API response types
+interface OrderResponse {
+  key: string;
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+  };
+}
+
+interface PaymentVerificationResponse {
+  success: boolean;
+  message: string;
+  error?: string;
 }
 
 type BuyCreditsProps = {
@@ -77,7 +108,7 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
   const router = useRouter();
 
   // Load Razorpay script more robustly
-  const loadRazorpayScript = () => {
+  const loadRazorpayScript = (): Promise<void> => {
     return new Promise<void>((resolve, reject) => {
       if (window.Razorpay) {
         resolve();
@@ -94,7 +125,7 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
     });
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (): Promise<void> => {
     try {
       setLoading(true);
       setPaymentError(null);
@@ -105,24 +136,26 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
         headers: { "Content-Type": "application/json" },
       });
 
-      const orderData = await orderResponse.json();
+      const orderData: OrderResponse = await orderResponse.json();
 
       if (!orderResponse.ok) {
-        throw new Error(orderData.error || "Failed to create payment order");
+        throw new Error(
+          orderData.order?.id || "Failed to create payment order"
+        );
       }
 
       // Load Razorpay script
       await loadRazorpayScript();
 
       // Configure Razorpay
-      const options = {
+      const options: RazorpayOptions = {
         key: orderData.key,
         amount: orderData.order.amount,
         currency: orderData.order.currency,
         name: "AI Resume Builder",
         description: "7 Resume Generation Credits",
         order_id: orderData.order.id,
-        handler: function (response: any) {
+        handler: function (response: RazorpayPaymentResponse) {
           handlePaymentSuccess(response);
         },
         prefill: {
@@ -141,17 +174,22 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
 
       const razorpay = new window.Razorpay(options);
       razorpay.open();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Payment error:", error);
-      setPaymentError(
-        error.message || "Payment processing failed. Please try again."
-      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Payment processing failed. Please try again.";
+
+      setPaymentError(errorMessage);
       setLoading(false);
       toast.error("Payment processing failed. Please try again.");
     }
   };
 
-  const handlePaymentSuccess = async (response: any) => {
+  const handlePaymentSuccess = async (
+    response: RazorpayPaymentResponse
+  ): Promise<void> => {
     try {
       // Verify payment on server
       const verifyResponse = await fetch("/api/payments/verify", {
@@ -164,7 +202,7 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
         }),
       });
 
-      const data = await verifyResponse.json();
+      const data: PaymentVerificationResponse = await verifyResponse.json();
 
       if (!verifyResponse.ok) {
         throw new Error(data.error || "Payment verification failed");
@@ -180,11 +218,14 @@ export default function BuyCredits({ lowCredits = false }: BuyCreditsProps) {
         router.push("/dashboard?payment_success=true");
         router.refresh();
       }, 2000);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Payment verification error:", error);
-      setPaymentError(
-        error.message || "Payment verification failed. Please contact support."
-      );
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Payment verification failed. Please contact support.";
+
+      setPaymentError(errorMessage);
       setShowDialog(true);
       toast.error("Payment verification failed. Please contact support.");
     } finally {

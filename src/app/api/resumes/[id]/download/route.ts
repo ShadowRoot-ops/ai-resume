@@ -1,8 +1,5 @@
 // src/app/api/resumes/[id]/download/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import mammoth from "mammoth";
-import { Readable } from "stream";
-import { renderToString } from "react-dom/server";
 
 // You'll need a function to fetch resume data from your database
 async function getResumeById(id: string) {
@@ -14,7 +11,47 @@ async function getResumeById(id: string) {
   return response.json();
 }
 
-function resumeToPlainText(resume: any): string {
+interface Resume {
+  title?: string;
+  content?: {
+    personalInfo?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      location?: string;
+      linkedin?: string;
+      website?: string;
+    };
+    summary?: string;
+    experience?: Array<{
+      position?: string;
+      company?: string;
+      location?: string;
+      startDate?: string;
+      endDate?: string;
+      current?: boolean;
+      responsibilities?: string[];
+    }>;
+    education?: Array<{
+      degree?: string;
+      fieldOfStudy?: string;
+      institution?: string;
+      startDate?: string;
+      endDate?: string;
+      current?: boolean;
+      gpa?: string;
+    }>;
+    skills?: string[];
+    projects?: Array<{
+      name?: string;
+      description?: string;
+      technologies?: string;
+      url?: string;
+    }>;
+  };
+}
+
+function resumeToPlainText(resume: Resume): string {
   // Convert resume data to plain text
   let text = "";
 
@@ -48,41 +85,51 @@ function resumeToPlainText(resume: any): string {
     text += "EXPERIENCE\n";
     text += "==========\n";
 
-    resume.content.experience.forEach((exp: any) => {
-      text += `${exp.position || ""}\n`;
-      text += `${exp.company || ""}${
-        exp.location ? `, ${exp.location}` : ""
-      }\n`;
+    resume.content.experience.forEach(
+      (exp: {
+        position?: string;
+        company?: string;
+        location?: string;
+        startDate?: string;
+        endDate?: string;
+        current?: boolean;
+        responsibilities?: string[];
+      }) => {
+        text += `${exp.position || ""}\n`;
+        text += `${exp.company || ""}${
+          exp.location ? `, ${exp.location}` : ""
+        }\n`;
 
-      const dateRange = [
-        exp.startDate
-          ? new Date(exp.startDate).toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "short",
-            })
-          : "",
-        exp.current
-          ? "Present"
-          : exp.endDate
-          ? new Date(exp.endDate).toLocaleDateString(undefined, {
-              year: "numeric",
-              month: "short",
-            })
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" - ");
+        const dateRange = [
+          exp.startDate
+            ? new Date(exp.startDate).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+              })
+            : "",
+          exp.current
+            ? "Present"
+            : exp.endDate
+            ? new Date(exp.endDate).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+              })
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" - ");
 
-      text += dateRange ? `${dateRange}\n` : "";
+        text += dateRange ? `${dateRange}\n` : "";
 
-      if (exp.responsibilities?.length) {
-        exp.responsibilities.forEach((resp: string) => {
-          text += `• ${resp}\n`;
-        });
+        if (exp.responsibilities?.length) {
+          exp.responsibilities.forEach((resp: string) => {
+            text += `• ${resp}\n`;
+          });
+        }
+
+        text += "\n";
       }
-
-      text += "\n";
-    });
+    );
   }
 
   // Education
@@ -90,27 +137,37 @@ function resumeToPlainText(resume: any): string {
     text += "EDUCATION\n";
     text += "=========\n";
 
-    resume.content.education.forEach((edu: any) => {
-      text += `${edu.degree || ""}${
-        edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
-      }\n`;
-      text += `${edu.institution || ""}\n`;
+    resume.content.education.forEach(
+      (edu: {
+        degree?: string;
+        fieldOfStudy?: string;
+        institution?: string;
+        startDate?: string;
+        endDate?: string;
+        current?: boolean;
+        gpa?: string;
+      }) => {
+        text += `${edu.degree || ""}${
+          edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
+        }\n`;
+        text += `${edu.institution || ""}\n`;
 
-      const dateRange = [
-        edu.startDate ? new Date(edu.startDate).getFullYear() : "",
-        edu.current
-          ? "Present"
-          : edu.endDate
-          ? new Date(edu.endDate).getFullYear()
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" - ");
+        const dateRange = [
+          edu.startDate ? new Date(edu.startDate).getFullYear() : "",
+          edu.current
+            ? "Present"
+            : edu.endDate
+            ? new Date(edu.endDate).getFullYear()
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" - ");
 
-      text += dateRange ? `${dateRange}\n` : "";
-      text += edu.gpa ? `GPA: ${edu.gpa}\n` : "";
-      text += "\n";
-    });
+        text += dateRange ? `${dateRange}\n` : "";
+        text += edu.gpa ? `GPA: ${edu.gpa}\n` : "";
+        text += "\n";
+      }
+    );
   }
 
   // Skills
@@ -125,15 +182,22 @@ function resumeToPlainText(resume: any): string {
     text += "PROJECTS\n";
     text += "========\n";
 
-    resume.content.projects.forEach((project: any) => {
-      text += `${project.name || ""}\n`;
-      text += project.description ? `${project.description}\n` : "";
-      text += project.technologies
-        ? `Technologies: ${project.technologies}\n`
-        : "";
-      text += project.url ? `URL: ${project.url}\n` : "";
-      text += "\n";
-    });
+    resume.content.projects.forEach(
+      (project: {
+        name?: string;
+        description?: string;
+        technologies?: string;
+        url?: string;
+      }) => {
+        text += `${project.name || ""}\n`;
+        text += project.description ? `${project.description}\n` : "";
+        text += project.technologies
+          ? `Technologies: ${project.technologies}\n`
+          : "";
+        text += project.url ? `URL: ${project.url}\n` : "";
+        text += "\n";
+      }
+    );
   }
 
   return text;
@@ -230,7 +294,15 @@ export async function GET(
               <h2 class="section-title">Experience</h2>
               ${resume.content.experience
                 .map(
-                  (exp: any) => `
+                  (exp: {
+                    position?: string;
+                    company?: string;
+                    location?: string;
+                    startDate?: string;
+                    endDate?: string;
+                    current?: boolean;
+                    responsibilities?: string[];
+                  }) => `
                 <div class="job">
                   <p class="job-title">${exp.position || ""}</p>
                   <p class="company">${exp.company || ""}${
@@ -284,7 +356,15 @@ export async function GET(
               <h2 class="section-title">Education</h2>
               ${resume.content.education
                 .map(
-                  (edu: any) => `
+                  (edu: {
+                    degree?: string;
+                    fieldOfStudy?: string;
+                    institution?: string;
+                    startDate?: string;
+                    endDate?: string;
+                    current?: boolean;
+                    gpa?: string;
+                  }) => `
                 <div class="education">
                   <p class="degree">${edu.degree || ""}${
                     edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
@@ -335,7 +415,12 @@ export async function GET(
               <h2 class="section-title">Projects</h2>
               ${resume.content.projects
                 .map(
-                  (project: any) => `
+                  (project: {
+                    name?: string;
+                    description?: string;
+                    technologies?: string;
+                    url?: string;
+                  }) => `
                 <div class="project">
                   <p class="project-name">${project.name || ""}</p>
                   ${project.description ? `<p>${project.description}</p>` : ""}

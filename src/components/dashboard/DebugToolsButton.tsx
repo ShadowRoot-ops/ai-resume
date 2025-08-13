@@ -29,8 +29,10 @@ export default function DebugToolsButton() {
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

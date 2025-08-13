@@ -226,7 +226,7 @@ export default async function PricingPage({
               Can I cancel my subscription at any time?
             </h3>
             <p className="text-gray-600">
-              Yes, you can cancel your Pro subscription at any time. You'll
+              Yes, you can cancel your Pro subscription at any time. You&#39;ll
               continue to have access until the end of your billing period.
             </p>
           </div>
@@ -237,8 +237,8 @@ export default async function PricingPage({
             </h3>
             <p className="text-gray-600">
               With pay-per-use, you purchase 7 credits for ₹99. Each premium
-              feature usage consumes 1 credit. Credits don't expire, so you can
-              use them whenever you need.
+              feature usage consumes 1 credit. Credits don&#39;t expire, so you
+              can use them whenever you need.
             </p>
           </div>
 

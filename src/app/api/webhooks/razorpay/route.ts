@@ -57,8 +57,19 @@ export async function POST(request: Request) {
   }
 }
 
-async function handlePaymentCaptured(payload: any) {
-  const paymentId = payload.payload.payment.entity.id;
+type RazorpayPaymentCapturedPayload = {
+  payload: {
+    payment: {
+      entity: {
+        order_id: string;
+        // Add other fields if needed
+      };
+    };
+  };
+};
+
+async function handlePaymentCaptured(payload: RazorpayPaymentCapturedPayload) {
+  // const paymentId = payload.payload.payment.entity.id;
   const orderId = payload.payload.payment.entity.order_id;
 
   await prisma.payment.updateMany({
@@ -72,7 +83,20 @@ async function handlePaymentCaptured(payload: any) {
   });
 }
 
-async function handleSubscriptionCharged(payload: any) {
+type RazorpaySubscriptionChargedPayload = {
+  payload: {
+    subscription: {
+      entity: {
+        id: string;
+        // Add other fields if needed
+      };
+    };
+  };
+};
+
+async function handleSubscriptionCharged(
+  payload: RazorpaySubscriptionChargedPayload
+) {
   const subscriptionId = payload.payload.subscription.entity.id;
 
   const subscription = await prisma.subscription.findFirst({
@@ -93,7 +117,20 @@ async function handleSubscriptionCharged(payload: any) {
   }
 }
 
-async function handleSubscriptionCancelled(payload: any) {
+type RazorpaySubscriptionCancelledPayload = {
+  payload: {
+    subscription: {
+      entity: {
+        id: string;
+        // Add other fields if needed
+      };
+    };
+  };
+};
+
+async function handleSubscriptionCancelled(
+  payload: RazorpaySubscriptionCancelledPayload
+) {
   const subscriptionId = payload.payload.subscription.entity.id;
 
   await prisma.subscription.updateMany({
@@ -105,7 +142,20 @@ async function handleSubscriptionCancelled(payload: any) {
   });
 }
 
-async function handleSubscriptionCompleted(payload: any) {
+type RazorpaySubscriptionCompletedPayload = {
+  payload: {
+    subscription: {
+      entity: {
+        id: string;
+        // Add other fields if needed
+      };
+    };
+  };
+};
+
+async function handleSubscriptionCompleted(
+  payload: RazorpaySubscriptionCompletedPayload
+) {
   const subscriptionId = payload.payload.subscription.entity.id;
 
   await prisma.subscription.updateMany({

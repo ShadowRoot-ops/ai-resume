@@ -53,10 +53,10 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloaded, setIsDownloaded] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [, setIsDeleting] = useState(false);
 
   // Helper function to ensure we have arrays
   const ensureArray = (value: string[] | string | undefined): string[] => {
@@ -67,7 +67,7 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
         // First try to parse it as JSON in case it's a stringified array
         const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [value];
-      } catch (e) {
+      } catch {
         // If it's not valid JSON, split by newlines or commas
         return value
           .split(/[\n,]+/)
@@ -152,7 +152,6 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
   const handleDelete = async () => {
     if (showConfirmDelete) {
       setIsDeleting(true);
-
       try {
         const response = await fetch(`/api/templates/${template.id}`, {
           method: "DELETE",
@@ -163,10 +162,7 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
         }
       } catch (error) {
         console.error("Error deleting template:", error);
-      } finally {
-        setIsDeleting(false);
       }
-    } else {
       setShowConfirmDelete(true);
     }
   };
@@ -257,7 +253,7 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
       const jsonContent = JSON.parse(template.resumeContent);
       formattedContent = JSON.stringify(jsonContent, null, 2);
     }
-  } catch (e) {
+  } catch {
     formattedContent = template.resumeContent || "";
   }
 
@@ -265,7 +261,7 @@ const TemplateDetailView: React.FC<TemplateDetailViewProps> = ({
   const getFormattedDate = (dateValue: Date | string) => {
     try {
       return formatDistanceToNow(new Date(dateValue), { addSuffix: true });
-    } catch (e) {
+    } catch {
       return "recently";
     }
   };

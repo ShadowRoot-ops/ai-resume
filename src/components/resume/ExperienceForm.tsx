@@ -50,7 +50,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
   const updateExperience = (
     index: number,
     field: keyof Experience,
-    value: any
+    value: string | Date | boolean | string[] | undefined
   ) => {
     const updatedExperiences = [...experiences];
     updatedExperiences[index] = {
@@ -231,7 +231,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
               </div>
               <p className="text-xs text-gray-500">
                 Tip: Use bullet points and quantify achievements (e.g.,
-                "Increased sales by 20%")
+                &quot;Increased sales by 20%&quot;)
               </p>
             </div>
           </CardContent>

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, FileUp, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
@@ -23,9 +23,9 @@ const resumeTemplateSchema = z.object({
   cultureFitIndicators: z.string().optional(),
   redFlags: z.string().optional(),
   sampleInterviewQuestions: z.string().optional(),
-  isPublic: z.boolean().default(true),
-  isAnonymized: z.boolean().default(false),
-  allowAnonymousFeedback: z.boolean().default(true),
+  isPublic: z.boolean(),
+  isAnonymized: z.boolean(),
+  allowAnonymousFeedback: z.boolean(),
   templateName: z.string().optional(),
 });
 
@@ -76,7 +76,7 @@ export default function EnhancedRecruiterUpload() {
             JSON.parse(value);
           }
         }
-      } catch (e) {
+      } catch {
         setUploadError("Invalid JSON format. Please check your input.");
         setIsUploading(false);
         return;
@@ -160,10 +160,10 @@ export default function EnhancedRecruiterUpload() {
       ],
     };
 
-    const resumeExample = JSON.stringify(resumeExample, null, 2);
+    const resumeExampleString = JSON.stringify(resumeContentExample, null, 2);
 
     // You would set this to a form field with setValue or similar
-    console.log(resumeExample);
+    console.log(resumeExampleString);
   };
 
   return (

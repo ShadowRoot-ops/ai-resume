@@ -1,11 +1,22 @@
 // src/lib/file-parsers.ts
-import { PDFDocument } from "pdf-lib";
+
 import * as pdfjs from "pdfjs-dist";
 import mammoth from "mammoth";
+import type {
+  TextItem,
+  TextMarkedContent,
+} from "pdfjs-dist/types/src/display/api";
 
-// Setup PDF.js worker
-const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.entry");
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Setup PDF.js worker - use dynamic import with proper worker URL
+if (typeof window !== "undefined") {
+  // For browser environment
+  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+} else {
+  // For Node.js environment
+  pdfjs.GlobalWorkerOptions.workerSrc = require.resolve(
+    "pdfjs-dist/build/pdf.worker.js"
+  );
+}
 
 /**
  * Parse text content from a PDF file
@@ -22,7 +33,12 @@ export async function parsePdf(buffer: ArrayBuffer): Promise<string> {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(" ");
+      const pageText = textContent.items
+        .map((item: TextItem | TextMarkedContent) => {
+          // Only TextItem has the 'str' property, TextMarkedContent doesn't
+          return "str" in item ? item.str : "";
+        })
+        .join(" ");
 
       fullText += pageText + "\n\n";
     }
