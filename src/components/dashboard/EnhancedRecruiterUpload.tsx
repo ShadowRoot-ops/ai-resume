@@ -9,6 +9,10 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
+interface EnhancedRecruiterUploadProps {
+  userId?: string;
+}
+
 // Define the form schema with proper types
 const resumeTemplateSchema = z.object({
   companyName: z.string().min(1, { message: "Company name is required" }),
@@ -31,7 +35,9 @@ const resumeTemplateSchema = z.object({
 
 type ResumeTemplateFormData = z.infer<typeof resumeTemplateSchema>;
 
-export default function EnhancedRecruiterUpload() {
+export default function EnhancedRecruiterUpload({
+  userId,
+}: EnhancedRecruiterUploadProps) {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -41,6 +47,7 @@ export default function EnhancedRecruiterUpload() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { isSubmitting },
   } = useForm<ResumeTemplateFormData>({
     resolver: zodResolver(resumeTemplateSchema),
@@ -82,13 +89,16 @@ export default function EnhancedRecruiterUpload() {
         return;
       }
 
+      // Add userId to the data if provided
+      const submitData = userId ? { ...data, userId } : data;
+
       // Submit to API
       const response = await fetch("/api/templates", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(submitData),
       });
 
       if (!response.ok) {
@@ -162,12 +172,12 @@ export default function EnhancedRecruiterUpload() {
 
     const resumeExampleString = JSON.stringify(resumeContentExample, null, 2);
 
-    // You would set this to a form field with setValue or similar
-    console.log(resumeExampleString);
+    // Set the example to the form field
+    setValue("resumeContent", resumeExampleString);
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto p-6">
       {uploadSuccess && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-6 flex items-center">
           <svg
@@ -198,6 +208,7 @@ export default function EnhancedRecruiterUpload() {
         <div className="border-b border-gray-200 bg-gray-50">
           <div className="flex">
             <button
+              type="button"
               className={`px-6 py-3 text-sm font-medium border-b-2 ${
                 currentStep === 1
                   ? "border-primary-500 text-primary-600"
@@ -208,6 +219,7 @@ export default function EnhancedRecruiterUpload() {
               Basic Info
             </button>
             <button
+              type="button"
               className={`px-6 py-3 text-sm font-medium border-b-2 ${
                 currentStep === 2
                   ? "border-primary-500 text-primary-600"
@@ -218,6 +230,7 @@ export default function EnhancedRecruiterUpload() {
               Resume Content
             </button>
             <button
+              type="button"
               className={`px-6 py-3 text-sm font-medium border-b-2 ${
                 currentStep === 3
                   ? "border-primary-500 text-primary-600"
@@ -372,7 +385,7 @@ export default function EnhancedRecruiterUpload() {
                   className="text-sm text-primary-600 hover:text-primary-500"
                   onClick={handleExampleClick}
                 >
-                  See example format
+                  Load example format
                 </button>
               </div>
 
@@ -384,7 +397,6 @@ export default function EnhancedRecruiterUpload() {
                   Resume Content (JSON format)
                 </label>
                 <textarea
-                  // src/components/dashboard/EnhancedRecruiterUpload.tsx (continued)
                   {...register("resumeContent")}
                   rows={15}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
@@ -403,7 +415,7 @@ export default function EnhancedRecruiterUpload() {
     }
   ]
 }'
-                ></textarea>
+                />
                 <p className="mt-2 text-xs text-gray-500">
                   Enter valid JSON structure with resume sections.
                 </p>
@@ -448,7 +460,7 @@ export default function EnhancedRecruiterUpload() {
                     rows={3}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
                     placeholder='["Focus on quantifiable achievements", "Include relevant keywords", "Keep it concise"]'
-                  ></textarea>
+                  />
                 </div>
 
                 <div>
@@ -463,7 +475,7 @@ export default function EnhancedRecruiterUpload() {
                     rows={3}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
                     placeholder='["JavaScript", "React", "Node.js", "TypeScript", "Problem Solving"]'
-                  ></textarea>
+                  />
                 </div>
 
                 <div>
@@ -478,7 +490,7 @@ export default function EnhancedRecruiterUpload() {
                     rows={3}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
                     placeholder='["Collaborative experience", "Innovation mindset", "Growth-oriented"]'
-                  ></textarea>
+                  />
                 </div>
 
                 <div>
@@ -493,7 +505,7 @@ export default function EnhancedRecruiterUpload() {
                     rows={3}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
                     placeholder='["Unexplained gaps", "Generic statements", "Too many job changes"]'
-                  ></textarea>
+                  />
                 </div>
 
                 <div>
@@ -508,7 +520,7 @@ export default function EnhancedRecruiterUpload() {
                     rows={3}
                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 font-mono text-sm"
                     placeholder='["Describe a challenging project", "How do you handle tight deadlines?", "What is your approach to problem-solving?"]'
-                  ></textarea>
+                  />
                 </div>
 
                 <div className="space-y-3 pt-2">
