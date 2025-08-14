@@ -1,38 +1,162 @@
 // src/lib/pdfParser.ts
 
-import fs from "fs";
-import path from "path";
-import os from "os";
-import { v4 as uuidv4 } from "uuid"; // You might need to install this: npm install uuid
+// Type definitions for PDF.js
+interface TextItem {
+  str: string;
+  dir: string;
+  width: number;
+  height: number;
+  transform: number[];
+  fontName: string;
+  hasEOL: boolean;
+}
 
-export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
+interface TextMarkedContent {
+  type: string;
+  id: string;
+}
+
+type TextContentItem = TextItem | TextMarkedContent;
+
+interface TextContent {
+  items: TextContentItem[];
+  styles: Record<string, unknown>;
+}
+
+interface PDFPageProxy {
+  getTextContent(): Promise<TextContent>;
+}
+
+interface PDFDocumentProxy {
+  numPages: number;
+  getPage(pageNumber: number): Promise<PDFPageProxy>;
+}
+
+interface PDFParseResult {
+  text: string;
+  success: boolean;
+  error?: string;
+}
+
+// Type guard to check if an item is a TextItem
+function isTextItem(item: TextContentItem): item is TextItem {
+  return "str" in item && typeof (item as TextItem).str === "string";
+}
+
+export async function extractTextFromPdf(
+  pdfBuffer: Buffer
+): Promise<PDFParseResult> {
   try {
-    // Import pdf-parse dynamically to avoid issues with Next.js SSR
-    const pdfParse = (await import("pdf-parse")).default;
+    // Try multiple PDF parsing approaches
 
-    // Create a temporary file
-    const tempDir = os.tmpdir();
-    const tempFilePath = path.join(tempDir, `temp-pdf-${uuidv4()}.pdf`);
-
-    // Write the buffer to the temp file
-    fs.writeFileSync(tempFilePath, pdfBuffer);
-
+    // Method 1: Try pdf-parse with proper error handling
     try {
-      // Use pdf-parse with the file path (which seems to be what it expects)
-      const dataBuffer = fs.readFileSync(tempFilePath);
-      const data = await pdfParse(dataBuffer);
-      return data.text || "";
-    } finally {
-      // Clean up - delete the temp file
+      const pdfParse = await import("pdf-parse");
+      const parseFunction = pdfParse.default || pdfParse;
+
+      const data = await parseFunction(pdfBuffer, {
+        // Disable any test-related functionality
+        max: 0, // Parse all pages
+        version: "default" as const,
+      });
+
+      return {
+        text: data.text || "",
+        success: true,
+      };
+    } catch (pdfParseError) {
+      console.warn(
+        "pdf-parse failed, trying alternative method:",
+        pdfParseError
+      );
+
+      // Method 2: Try pdfjs-dist
       try {
-        fs.unlinkSync(tempFilePath);
-      } catch (cleanupError) {
-        console.error("Error deleting temporary PDF file:", cleanupError);
+        const pdfjsLib = await import("pdfjs-dist");
+
+        // Set worker source to avoid worker issues
+        if (typeof window === "undefined") {
+          // Server-side
+          pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve(
+            "pdfjs-dist/build/pdf.worker.js"
+          );
+        } else {
+          // Client-side
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        }
+
+        const pdf: PDFDocumentProxy = await pdfjsLib.getDocument({
+          data: pdfBuffer,
+          useWorkerFetch: false,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        }).promise;
+
+        let fullText = "";
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .filter(isTextItem)
+            .map((item) => item.str)
+            .join(" ");
+          fullText += pageText + "\n";
+        }
+
+        return {
+          text: fullText.trim(),
+          success: true,
+        };
+      } catch (pdfjsError) {
+        console.error("Both PDF parsing methods failed:", {
+          pdfParseError,
+          pdfjsError,
+        });
+
+        return {
+          text: "[PDF content could not be extracted - please convert to DOC or TXT format]",
+          success: false,
+          error: `PDF parsing failed: ${
+            pdfjsError instanceof Error ? pdfjsError.message : "Unknown error"
+          }`,
+        };
       }
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("PDF extraction error:", error);
-    return `[Failed to extract text from PDF: ${errorMessage}]`;
+    return {
+      text: "[PDF processing error - please try a different file format]",
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+// Alternative: Simpler PDF parser that avoids test file issues
+export async function extractTextFromPdfSimple(
+  pdfBuffer: Buffer
+): Promise<string> {
+  try {
+    // Use dynamic import to avoid SSR issues
+    const { default: pdfParse } = await import("pdf-parse");
+
+    // Create a clean options object without any test-related properties
+    const options = {
+      max: 0, // Parse all pages
+      version: "default" as const,
+      // Explicitly avoid any test configurations
+      pagerender: undefined,
+    };
+
+    const data = await pdfParse(pdfBuffer, options);
+    return data.text || "";
+  } catch (error) {
+    console.error("Simple PDF extraction failed:", error);
+    // Return a clear error message instead of throwing
+    return `[Failed to extract PDF content: ${
+      error instanceof Error ? error.message : "Unknown error"
+    }. Please try converting to DOC or TXT format.]`;
   }
 }

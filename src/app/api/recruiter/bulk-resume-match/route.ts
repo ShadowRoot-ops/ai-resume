@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import mammoth from "mammoth";
-import pdf from "pdf-parse";
+import { extractTextFromPdf, extractTextFromPdfSimple } from "@/lib/pdfParser";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -46,26 +46,63 @@ interface BulkResumeAnalysis {
   atsScore: number;
   recommendation: "HIRE" | "MAYBE" | "REJECT";
   reasonForRecommendation: string;
+  extractionStatus?: string; // Add this to track extraction issues
 }
 
-async function extractTextFromFile(file: File): Promise<string> {
+async function extractTextFromFile(
+  file: File
+): Promise<{ text: string; status?: string }> {
   const buffer = await file.arrayBuffer();
+  const uint8Buffer = Buffer.from(buffer);
 
   if (file.type === "application/pdf") {
-    const data = await pdf(Buffer.from(buffer));
-    return data.text;
+    try {
+      // Try the robust PDF parser first
+      const result = await extractTextFromPdf(uint8Buffer);
+      if (result.success) {
+        return { text: result.text };
+      } else {
+        // If it failed, try the simple parser as fallback
+        const simpleText = await extractTextFromPdfSimple(uint8Buffer);
+        return {
+          text: simpleText,
+          status: result.error
+            ? `PDF parsing issue: ${result.error}`
+            : "PDF parsing had issues",
+        };
+      }
+    } catch (error) {
+      console.error(`PDF parsing failed for ${file.name}:`, error);
+      return {
+        text: `[Could not extract PDF content from ${file.name}]`,
+        status: `PDF extraction failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      };
+    }
   } else if (
     file.type ===
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    const result = await mammoth.extractRawText({
-      buffer: Buffer.from(buffer),
-    });
-    return result.value;
+    try {
+      const result = await mammoth.extractRawText({
+        buffer: uint8Buffer,
+      });
+      return { text: result.value };
+    } catch (error) {
+      console.error(`DOCX parsing failed for ${file.name}:`, error);
+      throw new Error(
+        `Failed to parse DOCX file: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   } else if (file.type === "text/plain") {
-    return new TextDecoder().decode(buffer);
+    return { text: new TextDecoder().decode(buffer) };
   } else {
-    throw new Error("Unsupported file type");
+    throw new Error(
+      `Unsupported file type: ${file.type}. Please use PDF, DOC, DOCX, or TXT files.`
+    );
   }
 }
 
@@ -73,51 +110,52 @@ async function analyzeBulkResume(
   jobDescription: string,
   resumeText: string,
   fileName: string,
-  filters?: BulkMatchFilters
+  filters?: BulkMatchFilters,
+  extractionStatus?: string
 ): Promise<BulkResumeAnalysis> {
   const prompt = `
-    As an expert recruiter and ATS system, analyze this resume against the job description.
-    
-    Job Description:
-    ${jobDescription}
-    
-    Resume Content:
-    ${resumeText}
-    
-    ${
-      filters
-        ? `Filters to consider:
-    - Minimum Experience: ${filters.minExperience ?? "Any"}
-    - Maximum Experience: ${filters.maxExperience ?? "Any"}
-    - Required Skills: ${filters.requiredSkills?.join(", ") || "None specified"}
-    - Location: ${filters.location ?? "Any"}
-    - Education: ${filters.education ?? "Any"}
-    - Minimum Score Required: ${filters.minScore ?? 70}`
-        : ""
-    }
-    
-    Extract information and provide analysis in this exact JSON format:
-    {
-      "candidateName": "extracted name or 'Not Found'",
-      "email": "extracted email or 'Not Found'",
-      "phone": "extracted phone or 'Not Found'",
-      "location": "extracted location or 'Not Found'",
-      "experience": "X years or 'Not specified'",
-      "currentRole": "current job title or 'Not Found'",
-      "skills": ["skill1", "skill2", "skill3"],
-      "education": "highest degree or 'Not Found'",
-      "overallScore": (0-100 integer),
-      "keywordMatches": ["matched keyword 1", "matched keyword 2"],
-      "missingSkills": ["missing skill 1", "missing skill 2"],
-      "strengths": ["strength 1", "strength 2", "strength 3"],
-      "weaknesses": ["weakness 1", "weakness 2"],
-      "atsScore": (0-100 integer),
-      "recommendation": "HIRE" or "MAYBE" or "REJECT",
-      "reasonForRecommendation": "brief explanation for the recommendation"
-    }
-    
-    Be accurate in extracting personal information and provide honest scoring.
-  `;
+As an expert recruiter and ATS system, analyze this resume against the job description.
+
+Job Description:
+${jobDescription}
+
+Resume Content:
+${resumeText}
+
+${
+  filters
+    ? `Filters to consider:
+- Minimum Experience: ${filters.minExperience ?? "Any"}
+- Maximum Experience: ${filters.maxExperience ?? "Any"}
+- Required Skills: ${filters.requiredSkills?.join(", ") || "None specified"}
+- Location: ${filters.location ?? "Any"}
+- Education: ${filters.education ?? "Any"}
+- Minimum Score Required: ${filters.minScore ?? 70}`
+    : ""
+}
+
+Extract information and provide analysis in this exact JSON format:
+{
+  "candidateName": "extracted name or 'Not Found'",
+  "email": "extracted email or 'Not Found'",
+  "phone": "extracted phone or 'Not Found'",
+  "location": "extracted location or 'Not Found'",
+  "experience": "X years or 'Not specified'",
+  "currentRole": "current job title or 'Not Found'",
+  "skills": ["skill1", "skill2", "skill3"],
+  "education": "highest degree or 'Not Found'",
+  "overallScore": (0-100 integer),
+  "keywordMatches": ["matched keyword 1", "matched keyword 2"],
+  "missingSkills": ["missing skill 1", "missing skill 2"],
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "weaknesses": ["weakness 1", "weakness 2"],
+  "atsScore": (0-100 integer),
+  "recommendation": "HIRE" or "MAYBE" or "REJECT",
+  "reasonForRecommendation": "brief explanation for the recommendation"
+}
+
+Be accurate in extracting personal information and provide honest scoring.
+`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -152,11 +190,16 @@ async function analyzeBulkResume(
     return {
       fileName,
       fileSize: 0,
+      extractionStatus,
       ...analysis,
     };
   } catch (error) {
     console.error("Analysis error for file:", fileName, error);
-    throw new Error(`Failed to analyze ${fileName}`);
+    throw new Error(
+      `Failed to analyze ${fileName}: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }
 
@@ -240,12 +283,13 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       try {
-        const resumeText = await extractTextFromFile(file);
+        const { text: resumeText, status } = await extractTextFromFile(file);
         const analysis = await analyzeBulkResume(
           jobDescription,
           resumeText,
           file.name,
-          filters
+          filters,
+          status
         );
         analysis.fileSize = file.size;
         results.push(analysis);
