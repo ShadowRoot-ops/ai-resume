@@ -43,7 +43,7 @@ export async function checkRateLimit(
     }
 
     // Check if premium user
-    const isPremium = user.subscription?.plan !== "free";
+    const isPremium = user.subscription?.plan !== "FREE";
 
     // Premium users have unlimited actions
     if (isPremium) {
