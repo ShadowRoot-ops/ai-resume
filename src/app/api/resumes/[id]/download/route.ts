@@ -85,51 +85,41 @@ function resumeToPlainText(resume: Resume): string {
     text += "EXPERIENCE\n";
     text += "==========\n";
 
-    resume.content.experience.forEach(
-      (exp: {
-        position?: string;
-        company?: string;
-        location?: string;
-        startDate?: string;
-        endDate?: string;
-        current?: boolean;
-        responsibilities?: string[];
-      }) => {
-        text += `${exp.position || ""}\n`;
-        text += `${exp.company || ""}${
-          exp.location ? `, ${exp.location}` : ""
-        }\n`;
+    resume.content.experience.forEach((exp) => {
+      text += `${exp.position || ""}\n`;
+      text += `${exp.company || ""}${
+        exp.location ? `, ${exp.location}` : ""
+      }\n`;
 
-        const dateRange = [
-          exp.startDate
-            ? new Date(exp.startDate).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-              })
-            : "",
-          exp.current
-            ? "Present"
-            : exp.endDate
-            ? new Date(exp.endDate).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-              })
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" - ");
+      const dateRange = [
+        exp.startDate
+          ? new Date(exp.startDate).toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+            })
+          : "",
+        exp.current
+          ? "Present"
+          : exp.endDate
+          ? new Date(exp.endDate).toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+            })
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" - ");
 
-        text += dateRange ? `${dateRange}\n` : "";
+      text += dateRange ? `${dateRange}\n` : "";
 
-        if (exp.responsibilities?.length) {
-          exp.responsibilities.forEach((resp: string) => {
-            text += `• ${resp}\n`;
-          });
-        }
-
-        text += "\n";
+      if (exp.responsibilities?.length) {
+        exp.responsibilities.forEach((resp) => {
+          text += `• ${resp}\n`;
+        });
       }
-    );
+
+      text += "\n";
+    });
   }
 
   // Education
@@ -137,37 +127,27 @@ function resumeToPlainText(resume: Resume): string {
     text += "EDUCATION\n";
     text += "=========\n";
 
-    resume.content.education.forEach(
-      (edu: {
-        degree?: string;
-        fieldOfStudy?: string;
-        institution?: string;
-        startDate?: string;
-        endDate?: string;
-        current?: boolean;
-        gpa?: string;
-      }) => {
-        text += `${edu.degree || ""}${
-          edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
-        }\n`;
-        text += `${edu.institution || ""}\n`;
+    resume.content.education.forEach((edu) => {
+      text += `${edu.degree || ""}${
+        edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ""
+      }\n`;
+      text += `${edu.institution || ""}\n`;
 
-        const dateRange = [
-          edu.startDate ? new Date(edu.startDate).getFullYear() : "",
-          edu.current
-            ? "Present"
-            : edu.endDate
-            ? new Date(edu.endDate).getFullYear()
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" - ");
+      const dateRange = [
+        edu.startDate ? new Date(edu.startDate).getFullYear() : "",
+        edu.current
+          ? "Present"
+          : edu.endDate
+          ? new Date(edu.endDate).getFullYear()
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" - ");
 
-        text += dateRange ? `${dateRange}\n` : "";
-        text += edu.gpa ? `GPA: ${edu.gpa}\n` : "";
-        text += "\n";
-      }
-    );
+      text += dateRange ? `${dateRange}\n` : "";
+      text += edu.gpa ? `GPA: ${edu.gpa}\n` : "";
+      text += "\n";
+    });
   }
 
   // Skills
@@ -182,32 +162,28 @@ function resumeToPlainText(resume: Resume): string {
     text += "PROJECTS\n";
     text += "========\n";
 
-    resume.content.projects.forEach(
-      (project: {
-        name?: string;
-        description?: string;
-        technologies?: string;
-        url?: string;
-      }) => {
-        text += `${project.name || ""}\n`;
-        text += project.description ? `${project.description}\n` : "";
-        text += project.technologies
-          ? `Technologies: ${project.technologies}\n`
-          : "";
-        text += project.url ? `URL: ${project.url}\n` : "";
-        text += "\n";
-      }
-    );
+    resume.content.projects.forEach((project) => {
+      text += `${project.name || ""}\n`;
+      text += project.description ? `${project.description}\n` : "";
+      text += project.technologies
+        ? `Technologies: ${project.technologies}\n`
+        : "";
+      text += project.url ? `URL: ${project.url}\n` : "";
+      text += "\n";
+    });
   }
 
   return text;
 }
 
+// Fixed function signature with proper typing
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params Promise
+    const params = await context.params;
     const format = request.nextUrl.searchParams.get("format") || "pdf";
     const resume = await getResumeById(params.id);
 
