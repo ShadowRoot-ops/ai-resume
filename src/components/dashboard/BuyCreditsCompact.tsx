@@ -64,15 +64,6 @@ interface RazorpayOptions {
   };
 }
 
-// interface RazorpayInstance {
-//   open: () => void;
-//   on: (event: string, callback: (response: RazorpayResponse) => void) => void;
-//   close: () => void;
-// }
-
-// Remove duplicate Window interface extension for Razorpay.
-// The Razorpay types and Window extension should be declared only once in a shared type definition file (e.g., src/lib/razorpay.ts).
-
 type CreditPackage = {
   id: string;
   credits: number;
@@ -251,34 +242,28 @@ export default function BuyCreditsCompact({
       console.log("Payment success response:", response);
       toast.loading("Verifying payment...", { id: "payment-verification" });
 
-      // Verify payment on server
-      const verifyResponse = await fetch("/api/payments/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_signature: response.razorpay_signature,
-          credits: selectedPackage?.credits || 7,
-          packageId: selectedPackage?.id || "basic",
-        }),
-      });
+      // FIXED: Use the server action instead of API route for better error handling
+      const { verifyPayment } = await import("@/lib/actions/payment-actions");
 
-      const data = await verifyResponse.json();
-      console.log("Verification response:", data);
+      const result = await verifyPayment(
+        response.razorpay_order_id,
+        response.razorpay_payment_id,
+        response.razorpay_signature
+      );
 
-      if (!verifyResponse.ok) {
-        throw new Error(data.error || "Payment verification failed");
-      }
-
+      console.log("Verification result:", result);
       toast.dismiss("payment-verification");
+
+      if (!result.success) {
+        throw new Error(result.message || "Payment verification failed");
+      }
 
       // Success - update UI
       setPaymentSuccess(true);
       setShowResultDialog(true);
       toast.success(
         `Payment successful! ${
-          data.creditsAdded || selectedPackage?.credits || 7
+          result.creditsAdded || selectedPackage?.credits || 7
         } credits added to your account.`,
         { duration: 5000 }
       );

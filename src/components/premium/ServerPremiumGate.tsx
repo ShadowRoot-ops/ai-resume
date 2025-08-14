@@ -33,7 +33,7 @@ export default async function ServerPremiumGate({
   customFeatures,
   showTimer = true,
 }: ServerPremiumGateProps) {
-  const { userId } = auth();
+  const { userId } = await auth();
 
   // If no user, fall back to the client-side gate which will show the lock screen
   if (!userId) {

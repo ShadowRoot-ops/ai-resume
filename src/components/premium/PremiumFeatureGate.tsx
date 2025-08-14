@@ -43,13 +43,56 @@ interface PremiumFeatureGateProps {
 interface SubscriptionInfo {
   plan: string;
   status: string;
-  [key: string]: any;
+  monthlyScansUsed?: number;
+  lastScanReset?: Date;
+  startDate?: Date | null;
+  endDate?: Date | null;
+  userId?: string;
+  id?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 interface FeatureCheckResponse {
   isUnlocked: boolean;
   subscription?: SubscriptionInfo | null;
 }
+
+// Razorpay types
+type RazorpayHandlerResponse = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayPaymentOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill: {
+    name: string;
+    email: string;
+  };
+  handler: (response: RazorpayHandlerResponse) => Promise<void>;
+  theme: {
+    color: string;
+    backdrop_color: string;
+  };
+  modal: {
+    ondismiss: () => void;
+  };
+};
+
+type RazorpayInstance = {
+  open: () => void;
+};
+
+type RazorpayConstructor = {
+  new (options: RazorpayPaymentOptions): RazorpayInstance;
+};
 
 const FEATURE_CONFIGS = {
   detailed_ats_analysis: {
@@ -104,7 +147,9 @@ const FEATURE_CONFIGS = {
       "Multiple Variations",
     ],
   },
-};
+} as const;
+
+type FeatureId = keyof typeof FEATURE_CONFIGS;
 
 export default function PremiumFeatureGate({
   featureId,
@@ -133,7 +178,7 @@ export default function PremiumFeatureGate({
 
   const { user } = useUser();
 
-  const config = FEATURE_CONFIGS[featureId as keyof typeof FEATURE_CONFIGS] || {
+  const config = FEATURE_CONFIGS[featureId as FeatureId] || {
     title: title || "Premium Feature",
     description: description || "Upgrade to unlock advanced features",
     features: customFeatures || ["Advanced Features", "Premium Access"],
@@ -196,7 +241,9 @@ export default function PremiumFeatureGate({
 
   const loadRazorpay = () => {
     return new Promise<void>((resolve, reject) => {
-      if ((window as any).Razorpay) {
+      const razorpay = (window as unknown as { Razorpay?: RazorpayConstructor })
+        .Razorpay;
+      if (razorpay) {
         resolve();
         return;
       }
@@ -207,12 +254,6 @@ export default function PremiumFeatureGate({
       script.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
       document.body.appendChild(script);
     });
-  };
-
-  type RazorpayHandlerResponse = {
-    razorpay_order_id: string;
-    razorpay_payment_id: string;
-    razorpay_signature: string;
   };
 
   const processPayment = async (
@@ -246,7 +287,7 @@ export default function PremiumFeatureGate({
         key: string;
       } = await orderResponse.json();
 
-      const options = {
+      const options: RazorpayPaymentOptions = {
         key: orderData.key,
         amount: orderData.order.amount,
         currency: orderData.order.currency,
@@ -324,8 +365,15 @@ export default function PremiumFeatureGate({
         },
       };
 
-      const paymentObject = new (window as any).Razorpay(options);
-      paymentObject.open();
+      const windowRazorpay = (
+        window as unknown as { Razorpay?: RazorpayConstructor }
+      ).Razorpay;
+      if (windowRazorpay) {
+        const paymentObject = new windowRazorpay(options);
+        paymentObject.open();
+      } else {
+        throw new Error("Razorpay SDK not loaded");
+      }
     } catch (error) {
       console.error("Error initiating payment:", error);
       toast.error("Payment Error", {

@@ -27,6 +27,8 @@ export async function POST(request: Request) {
       razorpayPaymentId,
       razorpaySignature,
       type,
+      credits,
+      packageId,
       featureId,
       resumeId,
     } = requestBody;
@@ -35,6 +37,8 @@ export async function POST(request: Request) {
       razorpayOrderId,
       razorpayPaymentId,
       type,
+      credits,
+      packageId,
       featureId,
       resumeId,
     });
@@ -48,6 +52,9 @@ export async function POST(request: Request) {
 
     if (expectedSignature !== razorpaySignature) {
       console.error("Signature verification failed");
+      console.error("Expected:", expectedSignature);
+      console.error("Received:", razorpaySignature);
+      console.error("Body used for signing:", body);
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
@@ -78,8 +85,44 @@ export async function POST(request: Request) {
 
     console.log("Payment record updated to completed");
 
-    // Handle subscription or feature unlock
-    if (type === "subscription") {
+    // Handle different payment types
+    if (type === "credits") {
+      console.log("Processing credits purchase:", credits);
+
+      // Add credits to user account
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          credits: {
+            increment: credits,
+          },
+          updatedAt: new Date(),
+        },
+      });
+
+      // Create credit usage record for tracking
+      await prisma.creditUsage.create({
+        data: {
+          userId: user.id,
+          amount: credits,
+          service: "credit_purchase",
+          description: `Purchased ${credits} credits via ${packageId} package`,
+        },
+      });
+
+      console.log(
+        `Added ${credits} credits to user account. New balance: ${updatedUser.credits}`
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Payment verified and credits added",
+        type: "credits",
+        creditsAdded: credits,
+        newBalance: updatedUser.credits,
+        packageId,
+      });
+    } else if (type === "subscription") {
       console.log("Processing subscription activation");
 
       // Calculate subscription dates
@@ -127,6 +170,12 @@ export async function POST(request: Request) {
       await prisma.featureUnlock.deleteMany({
         where: { userId: user.id },
       });
+
+      return NextResponse.json({
+        success: true,
+        message: "Payment verified and subscription activated",
+        type: "subscription",
+      });
     } else if (type === "feature_unlock" && featureId) {
       console.log("Processing feature unlock for:", featureId);
 
@@ -142,16 +191,22 @@ export async function POST(request: Request) {
       });
 
       console.log("Feature unlock created successfully");
+
+      return NextResponse.json({
+        success: true,
+        message: "Payment verified and feature unlocked",
+        type: "feature_unlock",
+        featureId,
+      });
+    } else {
+      console.error("Unknown payment type:", type);
+      return NextResponse.json(
+        { error: "Unknown payment type" },
+        { status: 400 }
+      );
     }
 
     console.log("=== Payment Verification Completed Successfully ===");
-
-    return NextResponse.json({
-      success: true,
-      message: "Payment verified and access granted",
-      type,
-      featureId: featureId || null,
-    });
   } catch (error: unknown) {
     console.error("=== Payment Verification Error ===");
     console.error("Error details:", error);

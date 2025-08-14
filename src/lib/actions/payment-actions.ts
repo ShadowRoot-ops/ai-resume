@@ -8,6 +8,7 @@ import Razorpay from "razorpay";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 
+// Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
@@ -15,9 +16,16 @@ const razorpay = new Razorpay({
 
 // Helper function to generate a short receipt ID
 function generateShortReceipt(userId: string): string {
-  const timestamp = Date.now().toString().slice(-8); // Last 8 digits of timestamp
-  const userIdShort = userId.slice(-8); // Last 8 characters of user ID
-  return `cr_${timestamp}_${userIdShort}`; // Format: cr_12345678_abcd1234 (max 20 chars)
+  const timestamp = Date.now().toString().slice(-8);
+  const userIdShort = userId.slice(-8);
+  return `cr_${timestamp}_${userIdShort}`;
+}
+
+interface PaymentOrderResult {
+  success: boolean;
+  order?: any;
+  key?: string;
+  error?: string;
 }
 
 export async function createPaymentOrder(
@@ -28,15 +36,10 @@ export async function createPaymentOrder(
   try {
     console.log("=== Server Action: Creating Payment Order ===");
 
-    // Get auth from the server context
     const { userId } = await auth();
-
     if (!userId) {
-      console.error("No userId found from auth()");
       throw new Error("User not authenticated");
     }
-
-    console.log("UserId from auth():", userId);
 
     const user = await getOrCreateUser(userId);
     console.log("User found/created:", { id: user.id, credits: user.credits });
@@ -50,9 +53,9 @@ export async function createPaymentOrder(
       throw new Error("Invalid credits");
     }
 
-    // Create a short receipt ID (max 40 characters, but we'll keep it under 20)
+    // Create a short receipt ID
     const receipt = generateShortReceipt(user.id);
-    console.log("Generated receipt:", receipt, "Length:", receipt.length);
+    console.log("Generated receipt:", receipt);
 
     // Create order options
     const options = {
@@ -70,7 +73,6 @@ export async function createPaymentOrder(
 
     console.log("Creating Razorpay order with options:", options);
 
-    // Create the order
     const order = await razorpay.orders.create(options);
     console.log("Razorpay order created successfully:", order.id);
 
@@ -82,14 +84,15 @@ export async function createPaymentOrder(
         currency: "INR",
         razorpayId: order.id,
         status: "pending",
+        type: "CREDITS", // Use the enum value
         creditsAdded: credits,
-        receipt: receipt, // Store the receipt for reference
+        receipt: receipt,
       },
     });
 
     console.log("Payment record created in database");
 
-    const response = {
+    return {
       success: true,
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
       order: {
@@ -98,22 +101,15 @@ export async function createPaymentOrder(
         currency: order.currency,
       },
     };
-
-    console.log("Sending response:", response);
-    console.log("=== Server Action: Payment Order Creation Completed ===");
-
-    return response;
   } catch (error) {
-    console.error("=== Server Action: Payment Order Creation Error ===");
-    console.error("Error details:", error);
-    console.error(
-      "Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
-    );
-
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to create payment order"
-    );
+    console.error("Payment order creation error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to create payment order",
+    };
   }
 }
 
@@ -131,46 +127,44 @@ export async function verifyPayment(
     }
 
     console.log("Verifying payment for user:", userId);
-    console.log("Razorpay Order ID:", razorpayOrderId);
-    console.log("Razorpay Payment ID:", razorpayPaymentId);
-    // 'crypto' is already imported at the top of the file
+    console.log("Order ID:", razorpayOrderId);
+    console.log("Payment ID:", razorpayPaymentId);
+
+    // Verify signature
+    const body = razorpayOrderId + "|" + razorpayPaymentId;
     const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET as string)
-      .update(razorpayOrderId + "|" + razorpayPaymentId)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+      .update(body)
       .digest("hex");
 
+    console.log("Body for signing:", body);
     console.log("Expected signature:", expectedSignature);
     console.log("Received signature:", razorpaySignature);
+    console.log(
+      "Secret key (first 10 chars):",
+      process.env.RAZORPAY_KEY_SECRET?.substring(0, 10)
+    );
 
     if (expectedSignature !== razorpaySignature) {
-      console.error("Signature mismatch - payment verification failed");
+      console.error("Signature mismatch!");
       throw new Error("Invalid payment signature");
     }
 
     console.log("Payment signature verified successfully");
 
-    // Update payment status and add credits
+    // Find and update payment
     const payment = await prisma.payment.findUnique({
       where: { razorpayId: razorpayOrderId },
       include: { user: true },
     });
 
     if (!payment) {
-      console.error("Payment record not found for order:", razorpayOrderId);
       throw new Error("Payment record not found");
     }
 
-    console.log("Found payment record:", {
-      id: payment.id,
-      userId: payment.userId,
-      amount: payment.amount,
-      creditsAdded: payment.creditsAdded,
-      currentStatus: payment.status,
-    });
-
     // Prevent double processing
-    if (payment.status === "successful") {
-      console.log("Payment already processed successfully");
+    if (payment.status === "completed") {
+      console.log("Payment already processed");
       return {
         success: true,
         message: "Payment already processed",
@@ -178,19 +172,20 @@ export async function verifyPayment(
       };
     }
 
+    // Transaction to update payment and add credits
     await prisma.$transaction(async (tx) => {
-      // Update payment status with the correct field name
+      // Update payment status
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          status: "successful",
-          razorpayPaymentId: razorpayPaymentId, // Now this field exists
+          status: "completed",
+          razorpayPaymentId: razorpayPaymentId,
           updatedAt: new Date(),
         },
       });
 
       // Add credits to user
-      const updatedUser = await tx.user.update({
+      await tx.user.update({
         where: { id: payment.userId },
         data: {
           credits: {
@@ -199,14 +194,18 @@ export async function verifyPayment(
         },
       });
 
-      console.log("Credits added successfully:", {
-        previousCredits: payment.user.credits,
-        creditsAdded: payment.creditsAdded,
-        newCredits: updatedUser.credits,
+      // Create credit usage record for tracking
+      await tx.creditUsage.create({
+        data: {
+          userId: payment.userId,
+          amount: payment.creditsAdded,
+          service: "credit_purchase",
+          description: `Purchased ${payment.creditsAdded} credits`,
+        },
       });
     });
 
-    console.log("=== Server Action: Payment Verification Completed ===");
+    console.log("=== Payment Verification Completed Successfully ===");
 
     revalidatePath("/dashboard");
     return {
@@ -215,14 +214,11 @@ export async function verifyPayment(
       message: `Payment verified successfully. ${payment.creditsAdded} credits added.`,
     };
   } catch (error) {
-    console.error("=== Server Action: Payment Verification Error ===");
     console.error("Payment verification error:", error);
-    console.error(
-      "Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
-    );
-    throw new Error(
-      error instanceof Error ? error.message : "Payment verification failed"
-    );
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Payment verification failed",
+    };
   }
 }
