@@ -1,14 +1,15 @@
-// src/app/api/resumes/[id]/delete/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAuth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log(`Received delete request for resume ID: ${params.id}`);
+    // Await the params to get the actual values
+    const { id } = await params;
+    console.log(`Received delete request for resume ID: ${id}`);
 
     const { userId } = getAuth(request);
 
@@ -29,7 +30,7 @@ export async function DELETE(
 
     // Check if the resume exists
     const resume = await prisma.resume.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!resume) {
@@ -48,7 +49,7 @@ export async function DELETE(
     // Delete the resume
     await prisma.resume.delete({
       where: {
-        id: params.id,
+        id,
       },
     });
 
@@ -59,7 +60,7 @@ export async function DELETE(
       message: "Resume deleted successfully",
     });
   } catch (error) {
-    console.error(`Error deleting resume ${params.id}:`, error);
+    console.error(`Error deleting resume:`, error);
     return NextResponse.json(
       { error: "Failed to delete resume" },
       { status: 500 }

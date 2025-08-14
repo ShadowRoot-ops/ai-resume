@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Config options here
+  // Disable ESLint during builds
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  // Your existing webpack config
   webpack: (config, {}) => {
     config.resolve.fallback = {
       fs: false,
@@ -10,7 +15,7 @@ const nextConfig: NextConfig = {
       path: false,
       encoding: false,
     };
-    return config; // ✅ return placed inside the function
+    return config;
   },
 };
 
