@@ -6,9 +6,10 @@ import { auth } from "@clerk/nextjs/server";
 // GET a specific template
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
+  const params = await context.params;
   const id = params.id;
 
   try {
@@ -47,9 +48,10 @@ export async function GET(
 // PUT to update a template
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
+  const params = await context.params;
   const id = params.id;
 
   if (!userId) {
@@ -149,9 +151,10 @@ export async function PUT(
 // DELETE a template
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
+  const params = await context.params;
   const id = params.id;
 
   if (!userId) {
