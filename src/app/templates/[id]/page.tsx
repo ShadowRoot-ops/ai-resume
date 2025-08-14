@@ -4,8 +4,13 @@ import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import TemplateDetailView from "@/components/dashboard/TemplateDetailView";
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
-  const template = await getTemplate(params.id);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const awaitedParams = await params;
+  const template = await getTemplate(awaitedParams.id);
 
   if (!template) {
     return {
@@ -59,6 +64,8 @@ async function getTemplate(id: string) {
       industry: template.industry || undefined,
       seniorityLevel: template.seniorityLevel || undefined,
       department: template.department || undefined,
+      successRate: template.successRate ?? undefined,
+      atsScore: template.atsScore ?? undefined,
     };
   } catch (error) {
     console.error("Error fetching template:", error);
@@ -69,9 +76,10 @@ async function getTemplate(id: string) {
 export default async function TemplatePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const template = await getTemplate(params.id);
+  const awaitedParams = await params;
+  const template = await getTemplate(awaitedParams.id);
 
   if (!template) {
     notFound();
