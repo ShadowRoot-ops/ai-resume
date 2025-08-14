@@ -21,12 +21,12 @@ function generateShortReceipt(userId: string): string {
   return `cr_${timestamp}_${userIdShort}`;
 }
 
-interface PaymentOrderResult {
-  success: boolean;
-  order?: any;
-  key?: string;
-  error?: string;
-}
+// interface PaymentOrderResult {
+//   success: boolean;
+//   order?: any;
+//   key?: string;
+//   error?: string;
+// }
 
 export async function createPaymentOrder(
   amount: number,
