@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 export default async function EditResumePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const { userId } = await auth();
 
@@ -15,7 +15,9 @@ export default async function EditResumePage({
     redirect("/auth/sign-in");
   }
 
-  const resumeId = params.id;
+  // Await the params Promise
+  const awaitedParams = await params;
+  const resumeId = awaitedParams.id;
 
   // Find user
   const user = await prisma.user.findUnique({
