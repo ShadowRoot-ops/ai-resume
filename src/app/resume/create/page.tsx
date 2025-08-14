@@ -34,7 +34,11 @@ export default async function CreateResumePage() {
         <h1 className="text-3xl font-bold mb-8 text-center">
           Create Your Optimized Resume
         </h1>
-        <ResumeForm mode="create" initialData={null} resumeId={undefined} />
+        <ResumeForm
+          mode="create"
+          initialData={undefined}
+          resumeId={undefined}
+        />
       </div>
     );
   } catch (error) {

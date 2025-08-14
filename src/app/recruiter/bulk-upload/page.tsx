@@ -16,7 +16,7 @@ export default async function BulkUploadPage() {
         Upload multiple resume templates at once to quickly build your template
         library. Ideal for recruiting agencies and HR teams.
       </p>
-      <BulkUploadTool userId={userId} />
+      <BulkUploadTool />
     </div>
   );
 }

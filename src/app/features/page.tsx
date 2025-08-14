@@ -270,8 +270,12 @@ export default function FeaturesPage() {
   );
 }
 
-// Add Check icon since it wasn't imported at the top
-const Check = ({ className }) => (
+// Add Check icon with proper TypeScript typing
+interface CheckProps {
+  className?: string;
+}
+
+const Check: React.FC<CheckProps> = ({ className }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"

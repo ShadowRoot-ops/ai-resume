@@ -10,7 +10,7 @@ export default function LuxuryNavbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isActive = (path) => pathname === path;
+  const isActive = (path: string) => pathname === path;
 
   // Don't show navbar on auth pages
   if (pathname.startsWith("/auth/") || pathname === "/onboarding") {

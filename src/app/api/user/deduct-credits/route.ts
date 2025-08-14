@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     // Check rate limits for free users
-    const isPremium = user.subscription?.plan !== "free";
+    const isPremium = user.subscription?.plan !== "FREE";
     const todayUsage = user.creditUsage.length;
     const isRateLimited = !isPremium && todayUsage >= 1;
 

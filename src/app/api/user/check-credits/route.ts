@@ -63,7 +63,9 @@ export async function POST(request: Request) {
     }
 
     // Check rate limits for free users
-    const isPremium = user.subscription?.plan !== "free";
+    // Fix: Compare with 'FREE' enum value, and handle case where subscription might not exist
+    const isPremium =
+      user.subscription?.plan && user.subscription.plan !== "FREE";
     const todayUsage = user.creditUsage.length;
     const isRateLimited = !isPremium && todayUsage >= 1;
 

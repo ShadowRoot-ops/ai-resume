@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
+// Define the Clerk email address type
+interface ClerkEmailAddress {
+  id: string;
+  email_address: string;
+  verification: {
+    status: string;
+  };
+}
+
+// Define the Clerk user type
+interface ClerkUser {
+  id: string;
+  primary_email_address_id: string;
+  email_addresses: ClerkEmailAddress[];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -28,9 +44,10 @@ export async function POST(request: NextRequest) {
       throw new Error("Failed to fetch Clerk user");
     }
 
-    const clerkUser = await clerkUserResponse.json();
+    const clerkUser: ClerkUser = await clerkUserResponse.json();
     const primaryEmail = clerkUser.email_addresses.find(
-      (email) => email.id === clerkUser.primary_email_address_id
+      (email: ClerkEmailAddress) =>
+        email.id === clerkUser.primary_email_address_id
     );
     const email = primaryEmail ? primaryEmail.email_address : "";
 
