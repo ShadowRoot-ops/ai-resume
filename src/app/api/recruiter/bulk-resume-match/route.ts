@@ -4,158 +4,159 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import mammoth from "mammoth";
-import { extractTextFromPdf, extractTextFromPdfSimple } from "@/lib/pdfParser";
+import { extractTextFromPdf } from "@/lib/pdfParser";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const bulkMatchSchema = z.object({
-  jobDescription: z.string().min(50),
-  filters: z
-    .object({
-      minExperience: z.number().optional(),
-      maxExperience: z.number().optional(),
-      requiredSkills: z.array(z.string()).optional(),
-      location: z.string().optional(),
-      education: z.string().optional(),
-      minScore: z.number().min(0).max(100).default(70),
-      maxCandidates: z.number().min(1).max(50).default(10),
-    })
-    .optional(),
+const bulkResumeMatchSchema = z.object({
+  jobDescription: z
+    .string()
+    .min(50, "Job description must be at least 50 characters"),
+  resumes: z
+    .array(z.instanceof(File))
+    .min(1, "At least one resume is required"),
 });
 
-type BulkMatchFilters = z.infer<typeof bulkMatchSchema>["filters"];
-
-interface BulkResumeAnalysis {
+interface ResumeAnalysis {
   fileName: string;
-  fileSize: number;
-  candidateName: string;
-  email: string;
-  phone: string;
-  location: string;
-  experience: string;
-  currentRole: string;
-  skills: string[];
-  education: string;
-  overallScore: number;
-  keywordMatches: string[];
-  missingSkills: string[];
-  strengths: string[];
-  weaknesses: string[];
-  atsScore: number;
-  recommendation: "HIRE" | "MAYBE" | "REJECT";
-  reasonForRecommendation: string;
-  extractionStatus?: string; // Add this to track extraction issues
+  text: string;
+  status: string;
+  overallScore?: number;
+  keywordMatches?: string[];
+  missingKeywords?: string[];
+  skillsMatch?: string[];
+  missingSkills?: string[];
+  experienceMatch?: boolean;
+  experienceGap?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendations?: string[];
+  atsScore?: number;
+  detailedAnalysis?: {
+    technicalSkills: number;
+    experience: number;
+    education: number;
+    keywords: number;
+  };
+  error?: string;
+}
+
+interface BulkAnalysisResult {
+  totalResumes: number;
+  processedResumes: number;
+  failedResumes: number;
+  analyses: ResumeAnalysis[];
+  topCandidates: ResumeAnalysis[];
+  summary: {
+    averageScore: number;
+    averageAtsScore: number;
+    commonMissingSkills: string[];
+    topSkillsFound: string[];
+  };
 }
 
 async function extractTextFromFile(
   file: File
 ): Promise<{ text: string; status?: string }> {
   const buffer = await file.arrayBuffer();
-  const uint8Buffer = Buffer.from(buffer);
+  const bufferData = Buffer.from(buffer);
 
-  if (file.type === "application/pdf") {
-    try {
-      // Try the robust PDF parser first
-      const result = await extractTextFromPdf(uint8Buffer);
-      if (result.success) {
-        return { text: result.text };
-      } else {
-        // If it failed, try the simple parser as fallback
-        const simpleText = await extractTextFromPdfSimple(uint8Buffer);
+  try {
+    if (file.type === "application/pdf") {
+      // Use our custom PDF parser that returns PDFParseResult
+      const result = await extractTextFromPdf(bufferData);
+      if (!result.success) {
         return {
-          text: simpleText,
-          status: result.error
-            ? `PDF parsing issue: ${result.error}`
-            : "PDF parsing had issues",
+          text: result.text, // This will contain the error message
+          status: `PDF extraction failed: ${result.error}`,
         };
       }
-    } catch (error) {
-      console.error(`PDF parsing failed for ${file.name}:`, error);
       return {
-        text: `[Could not extract PDF content from ${file.name}]`,
-        status: `PDF extraction failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
+        text: result.text, // Extract the text from PDFParseResult
+        status: "success",
       };
-    }
-  } else if (
-    file.type ===
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  ) {
-    try {
+    } else if (
+      file.type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
       const result = await mammoth.extractRawText({
-        buffer: uint8Buffer,
+        buffer: bufferData,
       });
-      return { text: result.value };
-    } catch (error) {
-      console.error(`DOCX parsing failed for ${file.name}:`, error);
+      return {
+        text: result.value,
+        status: "success",
+      };
+    } else if (file.type === "text/plain") {
+      return {
+        text: new TextDecoder().decode(buffer),
+        status: "success",
+      };
+    } else {
       throw new Error(
-        `Failed to parse DOCX file: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
+        "Unsupported file type. Please upload PDF, DOCX, or TXT files."
       );
     }
-  } else if (file.type === "text/plain") {
-    return { text: new TextDecoder().decode(buffer) };
-  } else {
-    throw new Error(
-      `Unsupported file type: ${file.type}. Please use PDF, DOC, DOCX, or TXT files.`
-    );
+  } catch (error) {
+    console.error(`Error extracting text from ${file.name}:`, error);
+    return {
+      text: "[Failed to extract text from file]",
+      status: `Extraction failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    };
   }
 }
 
-async function analyzeBulkResume(
+async function analyzeResumeMatch(
   jobDescription: string,
   resumeText: string,
-  fileName: string,
-  filters?: BulkMatchFilters,
-  extractionStatus?: string
-): Promise<BulkResumeAnalysis> {
+  fileName: string
+): Promise<Partial<ResumeAnalysis>> {
+  if (
+    resumeText.includes("[Failed to extract") ||
+    resumeText.includes("[PDF content could not be extracted")
+  ) {
+    return {
+      overallScore: 0,
+      atsScore: 0,
+      error: "Could not extract text from file",
+    };
+  }
+
   const prompt = `
-As an expert recruiter and ATS system, analyze this resume against the job description.
-
-Job Description:
-${jobDescription}
-
-Resume Content:
-${resumeText}
-
-${
-  filters
-    ? `Filters to consider:
-- Minimum Experience: ${filters.minExperience ?? "Any"}
-- Maximum Experience: ${filters.maxExperience ?? "Any"}
-- Required Skills: ${filters.requiredSkills?.join(", ") || "None specified"}
-- Location: ${filters.location ?? "Any"}
-- Education: ${filters.education ?? "Any"}
-- Minimum Score Required: ${filters.minScore ?? 70}`
-    : ""
-}
-
-Extract information and provide analysis in this exact JSON format:
-{
-  "candidateName": "extracted name or 'Not Found'",
-  "email": "extracted email or 'Not Found'",
-  "phone": "extracted phone or 'Not Found'",
-  "location": "extracted location or 'Not Found'",
-  "experience": "X years or 'Not specified'",
-  "currentRole": "current job title or 'Not Found'",
-  "skills": ["skill1", "skill2", "skill3"],
-  "education": "highest degree or 'Not Found'",
-  "overallScore": (0-100 integer),
-  "keywordMatches": ["matched keyword 1", "matched keyword 2"],
-  "missingSkills": ["missing skill 1", "missing skill 2"],
-  "strengths": ["strength 1", "strength 2", "strength 3"],
-  "weaknesses": ["weakness 1", "weakness 2"],
-  "atsScore": (0-100 integer),
-  "recommendation": "HIRE" or "MAYBE" or "REJECT",
-  "reasonForRecommendation": "brief explanation for the recommendation"
-}
-
-Be accurate in extracting personal information and provide honest scoring.
-`;
+    As an expert ATS system and recruiter, analyze how well this resume matches the job description.
+    
+    Job Description:
+    ${jobDescription}
+    
+    Resume (${fileName}):
+    ${resumeText}
+    
+    Provide a detailed analysis in the following JSON format:
+    {
+      "overallScore": (0-100 integer score),
+      "keywordMatches": ["matched keyword 1", "matched keyword 2"],
+      "missingKeywords": ["missing keyword 1", "missing keyword 2"],
+      "skillsMatch": ["matched skill 1", "matched skill 2"],
+      "missingSkills": ["missing skill 1", "missing skill 2"],
+      "experienceMatch": (boolean),
+      "experienceGap": "description of experience gap or match",
+      "strengths": ["strength 1", "strength 2", "strength 3"],
+      "weaknesses": ["weakness 1", "weakness 2"],
+      "recommendations": ["recommendation 1", "recommendation 2"],
+      "atsScore": (0-100 integer ATS compatibility score),
+      "detailedAnalysis": {
+        "technicalSkills": (0-100 score),
+        "experience": (0-100 score),
+        "education": (0-100 score),
+        "keywords": (0-100 score)
+      }
+    }
+    
+    Be thorough and provide actionable insights. Focus on technical skills, years of experience, education requirements, and keyword matching.
+  `;
 
   try {
     const response = await openai.chat.completions.create({
@@ -164,15 +165,15 @@ Be accurate in extracting personal information and provide honest scoring.
         {
           role: "system",
           content:
-            "You are an expert recruiter and ATS system. Extract accurate information and provide honest assessments.",
+            "You are an expert ATS system and recruiter. Analyze resumes objectively and provide detailed matching scores.",
         },
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.2,
-      max_tokens: 1200,
+      temperature: 0.3,
+      max_tokens: 1500,
     });
 
     const content = response.choices[0].message.content;
@@ -180,69 +181,21 @@ Be accurate in extracting personal information and provide honest scoring.
       throw new Error("No response from OpenAI");
     }
 
+    // Extract JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("Invalid JSON response from AI");
     }
 
-    const analysis = JSON.parse(jsonMatch[0]);
-
-    return {
-      fileName,
-      fileSize: 0,
-      extractionStatus,
-      ...analysis,
-    };
+    return JSON.parse(jsonMatch[0]);
   } catch (error) {
-    console.error("Analysis error for file:", fileName, error);
-    throw new Error(
-      `Failed to analyze ${fileName}: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
+    console.error(`OpenAI analysis error for ${fileName}:`, error);
+    return {
+      overallScore: 0,
+      atsScore: 0,
+      error: "Failed to analyze resume with AI",
+    };
   }
-}
-
-function applyFilters(
-  results: BulkResumeAnalysis[],
-  filters: BulkMatchFilters = { minScore: 70, maxCandidates: 10 }
-): BulkResumeAnalysis[] {
-  let filtered = results.filter(
-    (result) => result.overallScore >= (filters.minScore ?? 70)
-  );
-
-  if (filters.minExperience !== undefined) {
-    filtered = filtered.filter((result) => {
-      const experience = parseInt(result.experience);
-      return !isNaN(experience) && experience >= filters.minExperience!;
-    });
-  }
-
-  if (filters.maxExperience !== undefined) {
-    filtered = filtered.filter((result) => {
-      const experience = parseInt(result.experience);
-      return !isNaN(experience) && experience <= filters.maxExperience!;
-    });
-  }
-
-  if (filters.location) {
-    filtered = filtered.filter((result) =>
-      result.location.toLowerCase().includes(filters.location!.toLowerCase())
-    );
-  }
-
-  if (filters.requiredSkills?.length) {
-    filtered = filtered.filter((result) => {
-      const candidateSkills = result.skills.map((skill) => skill.toLowerCase());
-      return filters.requiredSkills!.some((skill) =>
-        candidateSkills.includes(skill.toLowerCase())
-      );
-    });
-  }
-
-  filtered.sort((a, b) => b.overallScore - a.overallScore);
-
-  return filtered.slice(0, filters.maxCandidates ?? 10);
 }
 
 export async function POST(request: NextRequest) {
@@ -254,83 +207,159 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const jobDescription = formData.get("jobDescription") as string;
-    const filtersString = formData.get("filters") as string;
+    const resumeFiles = formData.getAll("resumes") as File[];
 
-    const filters: BulkMatchFilters = filtersString
-      ? JSON.parse(filtersString)
-      : {};
-
-    const files: File[] = [];
-    let fileIndex = 0;
-    while (true) {
-      const file = formData.get(`resumes[${fileIndex}]`) as File;
-      if (!file) break;
-      files.push(file);
-      fileIndex++;
-    }
-
-    if (!jobDescription || files.length === 0) {
+    if (!jobDescription || !resumeFiles.length) {
       return NextResponse.json(
-        { error: "Job description and resume files are required" },
+        { error: "Job description and at least one resume file are required" },
         { status: 400 }
       );
     }
 
-    bulkMatchSchema.parse({ jobDescription, filters });
+    // Validate input
+    const validatedData = bulkResumeMatchSchema.parse({
+      jobDescription,
+      resumes: resumeFiles,
+    });
 
-    const results: BulkResumeAnalysis[] = [];
-    const errors: string[] = [];
+    const analyses: ResumeAnalysis[] = [];
+    let processedCount = 0;
+    let failedCount = 0;
 
-    for (const file of files) {
+    // Process each resume
+    for (const file of validatedData.resumes) {
       try {
-        const { text: resumeText, status } = await extractTextFromFile(file);
-        const analysis = await analyzeBulkResume(
-          jobDescription,
-          resumeText,
-          file.name,
-          filters,
-          status
-        );
-        analysis.fileSize = file.size;
-        results.push(analysis);
+        // Extract text from resume file
+        const extractionResult = await extractTextFromFile(file);
+
+        const baseAnalysis: ResumeAnalysis = {
+          fileName: file.name,
+          text: extractionResult.text,
+          status: extractionResult.status || "success",
+        };
+
+        if (extractionResult.status === "success") {
+          // Analyze resume match
+          const aiAnalysis = await analyzeResumeMatch(
+            validatedData.jobDescription,
+            extractionResult.text,
+            file.name
+          );
+
+          analyses.push({
+            ...baseAnalysis,
+            ...aiAnalysis,
+          });
+          processedCount++;
+        } else {
+          analyses.push({
+            ...baseAnalysis,
+            overallScore: 0,
+            atsScore: 0,
+            error: extractionResult.status,
+          });
+          failedCount++;
+        }
       } catch (error) {
         console.error(`Error processing ${file.name}:`, error);
-        errors.push(
-          `Failed to process ${file.name}: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        analyses.push({
+          fileName: file.name,
+          text: "",
+          status: "failed",
+          overallScore: 0,
+          atsScore: 0,
+          error: error instanceof Error ? error.message : "Processing failed",
+        });
+        failedCount++;
       }
     }
 
-    const filteredResults = applyFilters(results, filters);
+    // Calculate summary statistics
+    const validAnalyses = analyses.filter(
+      (analysis) =>
+        analysis.overallScore !== undefined && analysis.overallScore > 0
+    );
+
+    const averageScore =
+      validAnalyses.length > 0
+        ? Math.round(
+            validAnalyses.reduce(
+              (sum, analysis) => sum + (analysis.overallScore || 0),
+              0
+            ) / validAnalyses.length
+          )
+        : 0;
+
+    const averageAtsScore =
+      validAnalyses.length > 0
+        ? Math.round(
+            validAnalyses.reduce(
+              (sum, analysis) => sum + (analysis.atsScore || 0),
+              0
+            ) / validAnalyses.length
+          )
+        : 0;
+
+    // Get top candidates (sorted by overall score)
+    const topCandidates = analyses
+      .filter((analysis) => analysis.overallScore !== undefined)
+      .sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0))
+      .slice(0, 5);
+
+    // Collect common missing skills
+    const allMissingSkills: string[] = [];
+    const allFoundSkills: string[] = [];
+
+    validAnalyses.forEach((analysis) => {
+      if (analysis.missingSkills) {
+        allMissingSkills.push(...analysis.missingSkills);
+      }
+      if (analysis.skillsMatch) {
+        allFoundSkills.push(...analysis.skillsMatch);
+      }
+    });
+
+    const skillCounts = (skills: string[]) => {
+      const counts: Record<string, number> = {};
+      skills.forEach((skill) => {
+        counts[skill] = (counts[skill] || 0) + 1;
+      });
+      return counts;
+    };
+
+    const missingSkillCounts = skillCounts(allMissingSkills);
+    const foundSkillCounts = skillCounts(allFoundSkills);
+
+    const commonMissingSkills = Object.entries(missingSkillCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([skill]) => skill);
+
+    const topSkillsFound = Object.entries(foundSkillCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([skill]) => skill);
+
+    const result: BulkAnalysisResult = {
+      totalResumes: resumeFiles.length,
+      processedResumes: processedCount,
+      failedResumes: failedCount,
+      analyses,
+      topCandidates,
+      summary: {
+        averageScore,
+        averageAtsScore,
+        commonMissingSkills,
+        topSkillsFound,
+      },
+    };
 
     return NextResponse.json({
       success: true,
-      totalProcessed: files.length,
-      totalMatched: filteredResults.length,
-      results: filteredResults,
-      errors: errors.length ? errors : undefined,
-      summary: {
-        hireRecommended: filteredResults.filter(
-          (r) => r.recommendation === "HIRE"
-        ).length,
-        maybeRecommended: filteredResults.filter(
-          (r) => r.recommendation === "MAYBE"
-        ).length,
-        rejected: filteredResults.filter((r) => r.recommendation === "REJECT")
-          .length,
-        averageScore:
-          filteredResults.length > 0
-            ? Math.round(
-                filteredResults.reduce((sum, r) => sum + r.overallScore, 0) /
-                  filteredResults.length
-              )
-            : 0,
-      },
+      result,
     });
   } catch (error) {
-    console.error("Bulk resume analysis error:", error);
+    console.error("Bulk resume matching error:", error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

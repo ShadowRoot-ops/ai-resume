@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import mammoth from "mammoth";
-import pdf from "pdf-parse";
+import { extractTextFromPdf } from "@/lib/pdfParser";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -41,16 +41,21 @@ interface MatchAnalysis {
 
 async function extractTextFromFile(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
+  const bufferData = Buffer.from(buffer);
 
   if (file.type === "application/pdf") {
-    const data = await pdf(Buffer.from(buffer));
-    return data.text;
+    // Use our custom PDF parser that handles build issues
+    const result = await extractTextFromPdf(bufferData);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to extract PDF text");
+    }
+    return result.text;
   } else if (
     file.type ===
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
     const result = await mammoth.extractRawText({
-      buffer: Buffer.from(buffer),
+      buffer: bufferData,
     });
     return result.value;
   } else if (file.type === "text/plain") {
@@ -154,7 +159,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract text from resume file
-    const resumeText = await extractTextFromFile(resumeFile);
+    let resumeText: string;
+    try {
+      resumeText = await extractTextFromFile(resumeFile);
+    } catch (fileError) {
+      console.error("File extraction error:", fileError);
+      return NextResponse.json(
+        {
+          error:
+            fileError instanceof Error
+              ? fileError.message
+              : "Failed to process file",
+          details: "Please ensure your file is a valid PDF, DOCX, or TXT file.",
+        },
+        { status: 400 }
+      );
+    }
 
     // Validate input
     const validatedData = resumeMatchSchema.parse({
