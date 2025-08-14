@@ -1,14 +1,16 @@
 // src/app/api/resumes/[id]/update/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "@clerk/nextjs/server"; // Change this import
+import { getAuth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = getAuth(request); // Pass the request to getAuth
+    // Await the params Promise
+    const params = await context.params;
+    const { userId } = getAuth(request);
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
