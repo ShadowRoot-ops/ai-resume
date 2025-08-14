@@ -59,11 +59,18 @@ export async function POST(request: NextRequest) {
       colorPaletteIndex
     );
 
-    // Parse resume content
+    // Handle resume content based on its type
     let parsedContent;
     try {
-      parsedContent = JSON.parse(resumeContent);
-      console.log("Resume content parsed successfully");
+      // Check if resumeContent is already an object or if it's a string that needs parsing
+      if (typeof resumeContent === "string") {
+        parsedContent = JSON.parse(resumeContent);
+        console.log("Resume content parsed from string successfully");
+      } else {
+        // If it's already an object, use it directly
+        parsedContent = resumeContent;
+        console.log("Resume content used as object successfully");
+      }
     } catch (error) {
       console.error("Failed to parse resume content:", error);
       console.error("Raw content:", resumeContent);
@@ -72,6 +79,29 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Ensure parsedContent has the required structure
+    if (!parsedContent || typeof parsedContent !== "object") {
+      console.error("Invalid resume content structure");
+      return NextResponse.json(
+        { error: "Invalid resume format returned from AI" },
+        { status: 500 }
+      );
+    }
+
+    // Create analysis data object with default values if not provided
+    const analysisData = {
+      keywordMatches: parsedContent.keywordMatches || [],
+      missingKeywords: parsedContent.missingKeywords || [],
+      skillsMatch: parsedContent.skillsMatch || [],
+      missingSkills: parsedContent.missingSkills || [],
+      strengths: parsedContent.strengths || [],
+      weaknesses: parsedContent.weaknesses || [],
+      recommendations: parsedContent.recommendations || [],
+      detailedAnalysis: parsedContent.detailedAnalysis || {},
+      generatedAt: new Date().toISOString(),
+      ...parsedContent.analysisData, // Include any existing analysis data
+    };
 
     // Save resume to database
     console.log("Saving resume to database");
@@ -84,8 +114,11 @@ export async function POST(request: NextRequest) {
         jobTitle: jobTitle || null,
         companyTargeted: companyName || null,
         atsScore: parsedContent.atsScore || 0,
-        templateId,
-        colorPaletteIndex,
+        templateId: templateId || "professional",
+        colorPaletteIndex: colorPaletteIndex || 0,
+        keywordMatch: parsedContent.keywordMatch || 0,
+        formatScore: parsedContent.formatScore || 0,
+        analysisData: analysisData, // This is now required by your schema
       },
     });
 
