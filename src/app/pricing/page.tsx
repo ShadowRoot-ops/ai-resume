@@ -30,7 +30,7 @@ async function getSubscriptionDetails(userId: string) {
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: { resumeId?: string };
+  searchParams: Promise<{ resumeId?: string }>;
 }) {
   const { userId } = await auth();
 
@@ -40,7 +40,8 @@ export default async function PricingPage({
 
   const { plan, status } = await getSubscriptionDetails(userId);
   const isPro = plan === "PRO" && status === "ACTIVE";
-  const resumeId = searchParams.resumeId;
+  const awaitedSearchParams = await searchParams;
+  const resumeId = awaitedSearchParams.resumeId;
 
   return (
     <div className="container mx-auto py-16 px-4">
