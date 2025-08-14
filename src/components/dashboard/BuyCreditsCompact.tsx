@@ -32,54 +32,18 @@ import {
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { createPaymentOrder } from "@/lib/actions/payment-actions";
+import type { RazorpayOptions, RazorpayPaymentResponse } from "@/lib/razorpay";
 
-// Define proper types for Razorpay
-interface RazorpayResponse {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
-}
-
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: RazorpayResponse) => void;
-  prefill?: {
-    name?: string;
-    email?: string;
-    contact?: string;
-  };
-  notes?: {
-    [key: string]: string;
-  };
-  theme?: {
-    color?: string;
-  };
-  modal?: {
-    ondismiss?: () => void;
-  };
-}
-
-// FIXED: Updated RazorpayInstance interface to match what Razorpay actually returns
-interface RazorpayInstance {
-  open: () => void;
-  close?: () => void;
-  on?: (event: string, handler: (response: any) => void) => void;
-}
-
-// Define types for order data
+// Define types for order data - handling the actual return type from createPaymentOrder
 interface PaymentOrderData {
   success: boolean;
+  key?: string;
   order?: {
     id: string;
-    amount: number; // FIXED: Ensure this is always a number
+    amount: string | number;
     currency: string;
   };
-  key?: string;
+  error?: string;
   message?: string;
 }
 
@@ -137,13 +101,6 @@ type BuyCreditsCompactProps = {
   lowCredits?: boolean;
 };
 
-// FIXED: Updated global Razorpay interface to match the correct return type
-declare global {
-  interface Window {
-    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
-  }
-}
-
 export default function BuyCreditsCompact({
   lowCredits = false,
 }: BuyCreditsCompactProps) {
@@ -161,6 +118,7 @@ export default function BuyCreditsCompact({
   // Load Razorpay script
   const loadRazorpayScript = () => {
     return new Promise<void>((resolve, reject) => {
+      // Check if Razorpay is already loaded
       if (window.Razorpay) {
         resolve();
         return;
@@ -199,10 +157,10 @@ export default function BuyCreditsCompact({
         throw new Error(orderData.message || "Failed to create payment order");
       }
 
-      // FIXED: Ensure amount is a number and validate order data structure
+      // Handle amount conversion since it can be string or number
       const orderAmount =
         typeof orderData.order.amount === "string"
-          ? parseInt(orderData.order.amount)
+          ? parseFloat(orderData.order.amount)
           : orderData.order.amount;
 
       if (!orderData.order.id || !orderAmount || !orderData.order.currency) {
@@ -226,7 +184,7 @@ export default function BuyCreditsCompact({
         name: "AI Resume Builder",
         description: `${packageData.credits} Resume Generation Credits - ${packageData.title}`,
         order_id: orderData.order.id,
-        handler: function (response: RazorpayResponse) {
+        handler: function (response: RazorpayPaymentResponse) {
           handlePaymentSuccess(response);
         },
         prefill: {
@@ -273,7 +231,7 @@ export default function BuyCreditsCompact({
     }
   };
 
-  const handlePaymentSuccess = async (response: RazorpayResponse) => {
+  const handlePaymentSuccess = async (response: RazorpayPaymentResponse) => {
     try {
       console.log("Payment success response:", response);
       toast.loading("Verifying payment...", { id: "payment-verification" });
