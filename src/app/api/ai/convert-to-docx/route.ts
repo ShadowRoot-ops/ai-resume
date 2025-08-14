@@ -83,11 +83,11 @@ function cleanHTMLForDOCX(html: string): string {
   const cleanedHTML = html
     // Remove print-specific classes
     .replace(/class="[^"]*print[^"]*"/g, "")
-    // Remove sidebar and navigation elements
-    .replace(/<div[^>]*class="[^"]*sidebar[^"]*"[^>]*>.*?<\/div>/gs, "")
-    .replace(/<nav[^>]*>.*?<\/nav>/gs, "")
-    .replace(/<button[^>]*>.*?<\/button>/gs, "")
-    .replace(/<a[^>]*class="[^"]*button[^"]*"[^>]*>.*?<\/a>/gs, "")
+    // Remove sidebar and navigation elements - using [\s\S]*? instead of .*? with s flag
+    .replace(/<div[^>]*class="[^"]*sidebar[^"]*"[^>]*>[\s\S]*?<\/div>/g, "")
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/g, "")
+    .replace(/<button[^>]*>[\s\S]*?<\/button>/g, "")
+    .replace(/<a[^>]*class="[^"]*button[^"]*"[^>]*>[\s\S]*?<\/a>/g, "")
     // Remove complex CSS that doesn't translate well
     .replace(/style="[^"]*transform[^"]*"/g, "")
     .replace(/style="[^"]*transition[^"]*"/g, "")
@@ -96,10 +96,10 @@ function cleanHTMLForDOCX(html: string): string {
     .replace(/class="[^"]*hover:[^"]*"/g, "")
     .replace(/class="[^"]*focus:[^"]*"/g, "")
     .replace(/class="[^"]*active:[^"]*"/g, "")
-    // Remove script tags
-    .replace(/<script[^>]*>.*?<\/script>/gs, "")
-    // Remove style tags with complex CSS
-    .replace(/<style[^>]*>.*?<\/style>/gs, "");
+    // Remove script tags - using [\s\S]*? instead of .*? with s flag
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/g, "")
+    // Remove style tags with complex CSS - using [\s\S]*? instead of .*? with s flag
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
 
   // Add basic styling for better DOCX output - optimized for single page
   const styledHTML = `
