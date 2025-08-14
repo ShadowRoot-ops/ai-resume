@@ -82,7 +82,8 @@ export default function ResumeEditForm({ resume }: ResumeEditFormProps) {
 
   // Template preview component
   const TemplatePreview = ({ templateId }: { templateId: string }) => {
-    const template = resumeTemplates[templateId];
+    const template =
+      resumeTemplates[templateId as keyof typeof resumeTemplates];
     const colorPalette =
       colorPalettes[parseInt(form.getValues("colorPaletteIndex") || "0")];
 

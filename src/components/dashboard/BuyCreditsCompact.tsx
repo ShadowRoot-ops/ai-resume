@@ -64,6 +64,25 @@ interface RazorpayOptions {
   };
 }
 
+// FIXED: Updated RazorpayInstance interface to match what Razorpay actually returns
+interface RazorpayInstance {
+  open: () => void;
+  close?: () => void;
+  on?: (event: string, handler: (response: any) => void) => void;
+}
+
+// Define types for order data
+interface PaymentOrderData {
+  success: boolean;
+  order?: {
+    id: string;
+    amount: number; // FIXED: Ensure this is always a number
+    currency: string;
+  };
+  key?: string;
+  message?: string;
+}
+
 type CreditPackage = {
   id: string;
   credits: number;
@@ -118,6 +137,13 @@ type BuyCreditsCompactProps = {
   lowCredits?: boolean;
 };
 
+// FIXED: Updated global Razorpay interface to match the correct return type
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
 export default function BuyCreditsCompact({
   lowCredits = false,
 }: BuyCreditsCompactProps) {
@@ -160,7 +186,7 @@ export default function BuyCreditsCompact({
       toast.loading("Creating payment order...", { id: "payment-loading" });
 
       // Use server action instead of API route
-      const orderData = await createPaymentOrder(
+      const orderData: PaymentOrderData = await createPaymentOrder(
         packageData.price,
         packageData.credits,
         packageData.id
@@ -169,8 +195,18 @@ export default function BuyCreditsCompact({
       console.log("Order data received:", orderData);
       toast.dismiss("payment-loading");
 
-      if (!orderData.success) {
-        throw new Error("Failed to create payment order");
+      if (!orderData.success || !orderData.order) {
+        throw new Error(orderData.message || "Failed to create payment order");
+      }
+
+      // FIXED: Ensure amount is a number and validate order data structure
+      const orderAmount =
+        typeof orderData.order.amount === "string"
+          ? parseInt(orderData.order.amount)
+          : orderData.order.amount;
+
+      if (!orderData.order.id || !orderAmount || !orderData.order.currency) {
+        throw new Error("Invalid payment order data received");
       }
 
       // Load Razorpay script
@@ -185,7 +221,7 @@ export default function BuyCreditsCompact({
       // Configure Razorpay with proper types
       const options: RazorpayOptions = {
         key: orderData.key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
-        amount: Number(orderData.order.amount),
+        amount: orderAmount,
         currency: orderData.order.currency,
         name: "AI Resume Builder",
         description: `${packageData.credits} Resume Generation Credits - ${packageData.title}`,
